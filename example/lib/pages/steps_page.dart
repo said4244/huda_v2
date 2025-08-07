@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 import '../providers/sections_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../widgets/section_card.dart';
@@ -8,6 +9,7 @@ import '../widgets/adaptive_bottom_nav.dart';
 import '../models/section_model.dart';
 import '../utils/responsive_helper.dart';
 import '../theme/app_colors.dart';
+import '../controllers/page_transition_controller.dart';
 
 /// Modern sections page with Duolingo-style card layout
 /// Features:
@@ -78,11 +80,18 @@ class SectionsPage extends StatelessWidget {
   ) {
     if (!section.isUnlocked) return;
 
-    // Navigate to units page for this section
-    Navigator.of(context).pushNamed('/units', arguments: {
-      'sectionId': section.id,
-      'sectionTitle': section.name,
-    });
+    print("Section tapped: ${section.id} - ${section.name}");
+    
+    // Use GetX transition instead of Navigator
+    final transitionController = Get.find<PageTransitionController>();
+    print("Found transition controller: $transitionController");
+    
+    transitionController.navigateToUnits(
+      sectionId: section.id,
+      sectionTitle: section.name,
+    );
+    
+    print("Called navigateToUnits");
   }
 
   /// Handle unit tap within a section
@@ -104,29 +113,39 @@ class SectionsPage extends StatelessWidget {
 
   /// Handle bottom navigation tap
   void _handleNavTap(BuildContext context, int index) {
-    // For now, just show a snackbar since we only have sections page
-    String pageName = '';
+    final transitionController = Get.find<PageTransitionController>();
+    
     switch (index) {
-      case 0:
-        pageName = 'Sections';
+      case 0: // Home button
+        // Check if we're currently viewing the units page
+        if (transitionController.showUnitsPage) {
+          // Navigate back to sections with right-to-left transition
+          transitionController.navigateBackToSections();
+        }
+        // If already on sections page, do nothing (already home)
         break;
       case 1:
-        pageName = 'Stats';
+        // Stats page - show coming soon message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Stats page coming soon!'),
+            backgroundColor: AppColors.info,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
         break;
       case 2:
-        pageName = 'Profile';
+        // Profile page - show coming soon message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile page coming soon!'),
+            backgroundColor: AppColors.info,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
         break;
-    }
-    
-    if (index != 0) { // Only show message if not already on sections
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$pageName page coming soon!'),
-          backgroundColor: AppColors.info,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
     }
   }
 

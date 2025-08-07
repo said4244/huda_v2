@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 import 'package:avatar_sts2/avatar_sts2.dart';
 import 'pages/intro_page.dart';
 import 'pages/video_call_page.dart';
@@ -12,6 +13,7 @@ import 'data/providers/units_provider.dart';
 import 'services/language_provider.dart';
 import 'theme/app_colors.dart';
 import 'presentation/pages/units_page.dart';
+import 'controllers/page_transition_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +22,9 @@ void main() async {
   if (kIsWeb) {
     registerWebAudioUnlock();
   }
+  
+  // Initialize GetX controller
+  Get.put(PageTransitionController());
   
   runApp(const MyApp());
 }
@@ -39,7 +44,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
       ],
-      child: MaterialApp(
+      child: GetMaterialApp(
         title: 'Huda Avatar',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
@@ -119,18 +124,33 @@ class AppStack extends StatelessWidget {
     return Scaffold(
       body: Consumer2<VideoCallVisibilityProvider, IntroPageVisibilityProvider>(
         builder: (context, videoCallProvider, introProvider, child) {
-          return Stack(
-            children: [
-              // Always mounted - Sections page underneath
-              const SectionsPage(),
+          return GetBuilder<PageTransitionController>(
+            builder: (transitionController) {
+              print("GetBuilder rebuilding - showUnitsPage: ${transitionController.showUnitsPage}");
               
-              // Video call page - ALWAYS MOUNTED but visibility controlled
-              VideoCallPage(isVisible: videoCallProvider.isVisible),
-              
-              // Intro page - controlled by IntroPageVisibilityProvider, on top when visible
-              if (introProvider.isVisible)
-                const IntroPage(),
-            ],
+              return Stack(
+                children: [
+                  // Always mounted - Sections page underneath
+                  const SectionsPage(),
+                  
+                  // Units page - shown when transitioning
+                  if (transitionController.showUnitsPage)
+                    SlideTransition(
+                      position: transitionController.slideAnimation,
+                      child: UnitsPage(
+                        sectionId: transitionController.currentSectionId,
+                      ),
+                    ),
+                  
+                  // Video call page - ALWAYS MOUNTED but visibility controlled
+                  VideoCallPage(isVisible: videoCallProvider.isVisible),
+                  
+                  // Intro page - controlled by IntroPageVisibilityProvider, on top when visible
+                  if (introProvider.isVisible)
+                    const IntroPage(),
+                ],
+              );
+            },
           );
         },
       ),
