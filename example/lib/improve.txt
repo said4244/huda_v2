@@ -1,0 +1,2 @@
+1. Disable listening to microphone when in PiP mode
+2. add course selection page CRUD
