@@ -13,6 +13,7 @@ dependencies:
   provider: ^6.1.1
   http: ^1.2.1
   video_player: ^2.8.2
+  flutter_svg: ^2.0.10+1
   # Use the local package
   avatar_sts2:
     path: ../
@@ -30,6 +31,7 @@ flutter:
     - assets/images/flags/
     - assets/images/letters/
     - assets/audio/
+    - assets/svg/
   fonts:
     - family: "Tufuli Arabic"
       fonts:

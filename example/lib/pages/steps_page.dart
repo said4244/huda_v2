@@ -70,7 +70,7 @@ class SectionsPage extends StatelessWidget {
     );
   }
 
-  /// Handle section card tap - navigate to section details or avatar
+  /// Handle section card tap - navigate to units page for the section
   void _handleSectionTap(
     BuildContext context, 
     SectionModel section, 
@@ -78,11 +78,10 @@ class SectionsPage extends StatelessWidget {
   ) {
     if (!section.isUnlocked) return;
 
-    // For now, navigate to video call page for all sections
-    // Future: Navigate to section-specific content
-    Navigator.of(context).pushNamed('/video_call', arguments: {
-      'section': section,
-      'mode': 'section_intro',
+    // Navigate to units page for this section
+    Navigator.of(context).pushNamed('/units', arguments: {
+      'sectionId': section.id,
+      'sectionTitle': section.name,
     });
   }
 

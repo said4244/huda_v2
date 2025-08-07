@@ -7,8 +7,11 @@ import 'pages/video_call_page.dart';
 import 'pages/steps_page.dart'; // Now contains SectionsPage
 import 'providers/sections_provider.dart';
 import 'providers/navigation_provider.dart';
+import 'providers/user_stats_provider.dart';
+import 'data/providers/units_provider.dart';
 import 'services/language_provider.dart';
 import 'theme/app_colors.dart';
+import 'presentation/pages/units_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,12 +36,23 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => IntroPageVisibilityProvider()),
         ChangeNotifierProvider(create: (_) => SectionsProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
+        ChangeNotifierProvider(create: (_) => UserStatsProvider()),
+        ChangeNotifierProvider(create: (_) => UnitsProvider()),
       ],
       child: MaterialApp(
         title: 'Huda Avatar',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const AppStack(),
+        routes: {
+          '/units': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+            return UnitsPage(
+              sectionId: args?['sectionId'],
+              unitId: args?['unitId'],
+            );
+          },
+        },
       ),
     );
   }
