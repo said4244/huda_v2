@@ -207,7 +207,7 @@ class CrudMenu extends StatelessWidget {
     );
   }
 
-  void _addPage(BuildContext context) {
+  void _addPage(BuildContext context) async {
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
     
     // Create new page with random color and placeholder
@@ -215,20 +215,33 @@ class CrudMenu extends StatelessWidget {
     
     // Insert after current page
     final insertIndex = currentPageIndex + 1;
-    lessonsProvider.insertPage(unitId, levelId, insertIndex, newPage);
     
-    // Close menu and notify parent
-    Navigator.of(context).pop();
-    onPageAdded(insertIndex);
-    
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Page added at position ${insertIndex + 1}'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    try {
+      await lessonsProvider.insertPage(unitId, levelId, insertIndex, newPage);
+      
+      // Close menu and notify parent
+      Navigator.of(context).pop();
+      onPageAdded(insertIndex);
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Page added at position ${insertIndex + 1}'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      Navigator.of(context).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error adding page: $error'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   void _deletePage(BuildContext context) {
@@ -250,14 +263,14 @@ class CrudMenu extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               // Delete the page
-              final success = lessonsProvider.deletePage(unitId, levelId, currentPageIndex);
-              
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Close menu
-              
-              if (success) {
+              try {
+                await lessonsProvider.removePage(unitId, levelId, currentPageIndex);
+                
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop(); // Close menu
+                
                 onPageDeleted(currentPageIndex);
                 
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -265,6 +278,17 @@ class CrudMenu extends StatelessWidget {
                     content: Text('Page deleted successfully'),
                     backgroundColor: Colors.red,
                     duration: Duration(seconds: 2),
+                  ),
+                );
+              } catch (error) {
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop(); // Close menu
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error deleting page: $error'),
+                    backgroundColor: Colors.red,
+                    duration: Duration(seconds: 3),
                   ),
                 );
               }

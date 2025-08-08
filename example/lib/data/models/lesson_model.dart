@@ -139,6 +139,24 @@ class LessonModel {
     );
   }
 
+  /// Moves a page from one index to another
+  LessonModel movePage(int fromIndex, int toIndex) {
+    if (fromIndex < 0 || fromIndex >= pages.length ||
+        toIndex < 0 || toIndex >= pages.length ||
+        fromIndex == toIndex) {
+      return this;
+    }
+
+    final newPages = List<PageModel>.from(pages);
+    final pageToMove = newPages.removeAt(fromIndex);
+    newPages.insert(toIndex, pageToMove);
+
+    return copyWith(
+      pages: newPages,
+      updatedAt: DateTime.now(),
+    );
+  }
+
   /// Copy with new properties
   LessonModel copyWith({
     String? id,

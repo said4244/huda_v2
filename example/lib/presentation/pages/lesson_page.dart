@@ -34,6 +34,7 @@ class LessonPage extends StatefulWidget {
 class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
   late PageController _pageController;
   int _currentPageIndex = 0;
+  int _currentPageCount = 0; // Track current page count from stream
   LessonModel? _currentLesson;
   bool _isLoading = true;
 
@@ -67,9 +68,9 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     setState(() => _isLoading = true);
     
     try {
-      // Use provided lesson or get from provider
+      // Use provided lesson or get from provider (now async)
       _currentLesson = widget.lesson ?? 
-          lessonsProvider.getLesson(widget.unitId, widget.levelId, adminMode: widget.adminMode);
+          await lessonsProvider.getLesson(widget.unitId, widget.levelId, adminLogin: widget.adminMode);
       
       if (_currentLesson == null) {
         throw Exception('No lesson found for Unit ${widget.unitId}, Level ${widget.levelId}');
@@ -94,7 +95,7 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
   }
 
   void _navigateToPage(int pageIndex, {bool animate = true}) {
-    if (pageIndex < 0 || pageIndex >= (_currentLesson?.pageCount ?? 0)) return;
+    if (pageIndex < 0 || pageIndex >= _currentPageCount) return;
     
     if (animate) {
       _pageController.animateToPage(
@@ -112,9 +113,9 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
   }
 
   void _goToNextPage() {
-    if (_currentLesson == null) return;
+    if (_currentPageCount == 0) return;
     
-    if (_currentPageIndex >= _currentLesson!.pageCount - 1) {
+    if (_currentPageIndex >= _currentPageCount - 1) {
       // Show snackbar when at last page
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -168,10 +169,10 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     );
   }
 
-  void _onPageAdded(int index) {
-    // Refresh lesson from provider
+  void _onPageAdded(int index) async {
+    // Refresh lesson from provider (now async)
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
-    _currentLesson = lessonsProvider.getLesson(widget.unitId, widget.levelId);
+    _currentLesson = await lessonsProvider.getLesson(widget.unitId, widget.levelId);
     
     setState(() {});
     
@@ -179,10 +180,10 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     _navigateToPage(index);
   }
 
-  void _onPageDeleted(int deletedIndex) {
-    // Refresh lesson from provider
+  void _onPageDeleted(int deletedIndex) async {
+    // Refresh lesson from provider (now async)
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
-    _currentLesson = lessonsProvider.getLesson(widget.unitId, widget.levelId);
+    _currentLesson = await lessonsProvider.getLesson(widget.unitId, widget.levelId);
     
     // Adjust current page index if necessary
     if (_currentPageIndex >= deletedIndex && _currentPageIndex > 0) {
@@ -195,10 +196,10 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     _navigateToPage(_currentPageIndex, animate: false);
   }
 
-  void _onPageUpdated() {
-    // Refresh lesson from provider
+  void _onPageUpdated() async {
+    // Refresh lesson from provider (now async)
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
-    _currentLesson = lessonsProvider.getLesson(widget.unitId, widget.levelId);
+    _currentLesson = await lessonsProvider.getLesson(widget.unitId, widget.levelId);
     
     setState(() {});
   }
@@ -294,7 +295,7 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
   }
 
   Widget _buildPageIndicator() {
-    if (_currentLesson == null || _currentLesson!.pageCount <= 1) {
+    if (_currentPageCount <= 1) {
       return const SizedBox.shrink();
     }
 
@@ -304,7 +305,7 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
       right: 0,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(_currentLesson!.pageCount, (index) {
+        children: List.generate(_currentPageCount, (index) {
           return Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
             width: 12,
@@ -359,17 +360,58 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     return Scaffold(
       body: Stack(
         children: [
-          // Page view
-          PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentPageIndex = index;
-              });
-            },
-            itemCount: _currentLesson!.pageCount,
-            itemBuilder: (context, index) {
-              return _buildPage(_currentLesson!.pages[index]);
+          // Page view with real-time streaming from Firebase
+          Consumer<LessonsProvider>(
+            builder: (context, lessonsProvider, child) {
+              return StreamBuilder<List<PageModel>>(
+                stream: lessonsProvider.getPagesStream(widget.unitId, widget.levelId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          SizedBox(height: 16),
+                          Text('Error loading pages: ${snapshot.error}'),
+                        ],
+                      ),
+                    );
+                  }
+                  
+                  final pages = snapshot.data ?? [];
+                  if (pages.isEmpty) {
+                    return const Center(
+                      child: Text('No pages found'),
+                    );
+                  }
+                  
+                  // Update current page count
+                  _currentPageCount = pages.length;
+                  
+                  // Ensure current page index is within bounds
+                  if (_currentPageIndex >= pages.length) {
+                    _currentPageIndex = pages.length - 1;
+                  }
+                  
+                  return PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentPageIndex = index;
+                      });
+                    },
+                    itemCount: pages.length,
+                    itemBuilder: (context, index) {
+                      return _buildPage(pages[index]);
+                    },
+                  );
+                },
+              );
             },
           ),
           

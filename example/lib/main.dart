@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:get/get.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:avatar_sts2/avatar_sts2.dart';
+import 'firebase_options.dart';
 import 'pages/intro_page.dart';
 import 'pages/video_call_page.dart';
 import 'pages/steps_page.dart'; // Now contains SectionsPage
@@ -12,6 +14,7 @@ import 'providers/navigation_provider.dart';
 import 'providers/user_stats_provider.dart';
 import 'data/providers/units_provider.dart';
 import 'data/providers/lessons_provider.dart';
+import 'data/services/lessons_service.dart';
 import 'services/language_provider.dart';
 import 'theme/app_colors.dart';
 import 'presentation/pages/units_page.dart';
@@ -24,9 +27,17 @@ const bool adminLogin = true;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Hive for persistent storage
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Initialize Hive for optional local caching
   await Hive.initFlutter();
-  final lessonsBox = await Hive.openBox('lessons');
+  final lessonsBox = await Hive.openBox('lessons_cache');
+  
+  // Initialize Firebase services
+  final lessonsService = LessonsService();
   
   // Initialize web audio unlock for mobile browsers
   if (kIsWeb) {
@@ -36,13 +47,21 @@ void main() async {
   // Initialize GetX controller
   Get.put(PageTransitionController());
   
-  runApp(MyApp(lessonsBox: lessonsBox));
+  runApp(MyApp(
+    lessonsBox: lessonsBox,
+    lessonsService: lessonsService,
+  ));
 }
 
 class MyApp extends StatelessWidget {
   final Box lessonsBox;
+  final LessonsService lessonsService;
   
-  const MyApp({super.key, required this.lessonsBox});
+  const MyApp({
+    super.key, 
+    required this.lessonsBox,
+    required this.lessonsService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +74,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsBox)),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsService, lessonsBox)),
       ],
       child: GetMaterialApp(
         title: 'Huda Avatar',

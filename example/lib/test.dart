@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:get/get.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'firebase_options.dart';
 import 'pages/steps_page.dart';
 import 'providers/sections_provider.dart';
 import 'providers/navigation_provider.dart';
 import 'providers/user_stats_provider.dart';
 import 'data/providers/units_provider.dart';
 import 'data/providers/lessons_provider.dart';
+import 'data/services/lessons_service.dart';
 import 'presentation/pages/units_page.dart';
 import 'presentation/pages/lesson_page.dart';
 import 'theme/app_colors.dart';
@@ -16,8 +19,9 @@ import 'controllers/page_transition_controller.dart';
 // Test admin configuration - set to true to enable CRUD features in test
 const bool testAdminLogin = true;
 
-// Global test Hive box reference for sharing across test widgets
+// Global test references for sharing across test widgets
 late Box _globalTestLessonsBox;
+late LessonsService _globalTestLessonsService;
 
 /// Quick test app to preview the sections page without going through the full flow
 /// 
@@ -29,17 +33,29 @@ late Box _globalTestLessonsBox;
 /// OR create a separate entry point by running:
 /// flutter run -t lib/test.dart --hot
 void main() async {
-  // Initialize GetX controller and Hive for test environment
+  // Initialize GetX controller, Firebase, and Hive for test environment
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Hive for persistent storage (same as main.dart)
+  // Initialize Firebase (same as main.dart)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Initialize Hive for local caching (same as main.dart)
   await Hive.initFlutter();
-  final testLessonsBox = await Hive.openBox('test_lessons'); // Separate box for testing
+  final testLessonsBox = await Hive.openBox('test_lessons_cache'); // Separate cache for testing
   _globalTestLessonsBox = testLessonsBox;
+  
+  // Initialize Firebase services
+  final testLessonsService = LessonsService();
+  _globalTestLessonsService = testLessonsService;
   
   Get.put(PageTransitionController());
   
-  runApp(TestSectionsApp(lessonsBox: testLessonsBox));
+  runApp(TestSectionsApp(
+    lessonsBox: testLessonsBox,
+    lessonsService: testLessonsService,
+  ));
 }
 
 /// Switch between different test modes by changing this:
@@ -52,8 +68,13 @@ void main() async {
 
 class TestSectionsApp extends StatelessWidget {
   final Box lessonsBox;
+  final LessonsService lessonsService;
   
-  const TestSectionsApp({super.key, required this.lessonsBox});
+  const TestSectionsApp({
+    super.key, 
+    required this.lessonsBox,
+    required this.lessonsService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +84,7 @@ class TestSectionsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsBox)),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsService, lessonsBox)),
       ],
       child: GetMaterialApp(
         title: 'Sections Test',
@@ -149,7 +170,7 @@ class MinimalSectionsTest extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsBox)),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsService, _globalTestLessonsBox)),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -175,7 +196,7 @@ class UnitsPageTest extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsBox)),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsService, _globalTestLessonsBox)),
       ],
       child: MaterialApp(
         title: 'Units Test',
@@ -207,7 +228,7 @@ class LessonPageTest extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsBox)),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsService, _globalTestLessonsBox)),
       ],
       child: MaterialApp(
         title: 'Lesson Test',
