@@ -1,18 +1,59 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/lesson_model.dart';
 import '../models/page_model.dart';
 
-/// Provider for managing lessons state and CRUD operations
+/// Provider for managing lessons state and CRUD operations with Hive persistence
 /// Features:
-/// - Load and cache lessons in memory
+/// - Load and cache lessons from Hive storage
 /// - Create new lessons automatically for admin users
-/// - CRUD operations for pages within lessons
-/// - Future-ready for Hive or other persistent storage
+/// - CRUD operations for pages within lessons with automatic persistence
+/// - Real-time data persistence using Hive Box
 class LessonsProvider extends ChangeNotifier {
+  final Box _box;
   final Map<String, LessonModel> _lessons = {};
   bool _isLoading = false;
   String? _error;
+
+  /// Constructor that accepts a Hive box for persistence
+  LessonsProvider(this._box) {
+    _loadFromStorage();
+  }
+
+  /// Load lessons from Hive storage on initialization
+  void _loadFromStorage() {
+    try {
+      final stored = _box.get('data');
+      if (stored is Map<String, dynamic>) {
+        final Map<String, dynamic> lessonsData = Map<String, dynamic>.from(stored);
+        _lessons.clear();
+        
+        for (final entry in lessonsData.entries) {
+          final lessonJson = Map<String, dynamic>.from(entry.value);
+          _lessons[entry.key] = LessonModel.fromJson(lessonJson);
+        }
+        
+        print('Loaded ${_lessons.length} lessons from storage');
+      } else {
+        print('No existing lessons found in storage, starting fresh');
+      }
+    } catch (error) {
+      print('Error loading lessons from storage: $error');
+      _setError('Failed to load lessons from storage: $error');
+    }
+  }
+
+  /// Save lessons to Hive storage
+  void _saveToDisk() {
+    try {
+      final data = _lessons.map((key, lesson) => MapEntry(key, lesson.toJson()));
+      _box.put('data', data);
+      print('Saved ${_lessons.length} lessons to storage');
+    } catch (error) {
+      print('Error saving lessons to storage: $error');
+      _setError('Failed to save lessons to storage: $error');
+    }
+  }
 
   // Getters
   Map<String, LessonModel> get lessons => Map.unmodifiable(_lessons);
@@ -45,6 +86,7 @@ class LessonsProvider extends ChangeNotifier {
       );
       
       _lessons[key] = newLesson;
+      _saveToDisk(); // Persist to storage
       notifyListeners();
       
       print('Created new lesson: ${newLesson.id} for unit $unitId, level $levelId');
@@ -65,6 +107,7 @@ class LessonsProvider extends ChangeNotifier {
     );
     
     _lessons[key] = sampleLesson;
+    _saveToDisk(); // Persist to storage
     notifyListeners();
     
     print('Created sample lesson: ${sampleLesson.id} with ${sampleLesson.pageCount} pages');
@@ -82,6 +125,7 @@ class LessonsProvider extends ChangeNotifier {
     }
 
     _lessons[key] = lesson.insertPage(index, page);
+    _saveToDisk(); // Persist to storage
     notifyListeners();
     
     print('Inserted page at index $index in lesson ${lesson.id}. Total pages: ${_lessons[key]!.pageCount}');
@@ -109,6 +153,7 @@ class LessonsProvider extends ChangeNotifier {
     }
 
     _lessons[key] = lesson.removePage(index);
+    _saveToDisk(); // Persist to storage
     notifyListeners();
     
     print('Deleted page at index $index in lesson ${lesson.id}. Remaining pages: ${_lessons[key]!.pageCount}');
@@ -131,6 +176,7 @@ class LessonsProvider extends ChangeNotifier {
     }
 
     _lessons[key] = lesson.updatePage(index, updatedPage);
+    _saveToDisk(); // Persist to storage
     notifyListeners();
     
     print('Updated page at index $index in lesson ${lesson.id}');
@@ -167,6 +213,7 @@ class LessonsProvider extends ChangeNotifier {
     final key = _getLessonKey(unitId, levelId);
     if (_lessons.containsKey(key)) {
       _lessons.remove(key);
+      _saveToDisk(); // Persist to storage
       notifyListeners();
       print('Deleted lesson for unit $unitId, level $levelId');
     }
@@ -186,7 +233,7 @@ class LessonsProvider extends ChangeNotifier {
       ..sort((a, b) => a.levelId.compareTo(b.levelId));
   }
 
-  /// Loads lessons from persistent storage (placeholder for future Hive implementation)
+  /// Loads lessons from persistent storage (now uses Hive)
   Future<void> loadLessons() async {
     _setLoading(true);
     _clearError();
@@ -195,9 +242,8 @@ class LessonsProvider extends ChangeNotifier {
       // Simulate loading delay
       await Future.delayed(const Duration(milliseconds: 500));
       
-      // TODO: Implement Hive loading
-      // For now, create some sample lessons for testing
-      _createSampleLessons();
+      // Data is already loaded in constructor via _loadFromStorage()
+      // This method is kept for compatibility with existing UI
       
       notifyListeners();
     } catch (error) {
@@ -207,29 +253,15 @@ class LessonsProvider extends ChangeNotifier {
     }
   }
 
-  /// Saves lessons to persistent storage (placeholder for future Hive implementation)
+  /// Saves lessons to persistent storage (now uses Hive)
   Future<void> saveLessons() async {
     try {
-      // TODO: Implement Hive saving
-      print('Saving ${_lessons.length} lessons to storage...');
-      
-      // Simulate save delay
-      await Future.delayed(const Duration(milliseconds: 200));
-      
-      print('Lessons saved successfully');
+      // Data is automatically saved after each operation via _saveToDisk()
+      // This method is kept for compatibility with existing UI
+      print('Lessons are automatically saved after each operation');
     } catch (error) {
       _setError('Failed to save lessons: $error');
     }
-  }
-
-  /// Creates sample lessons for testing and development
-  void _createSampleLessons() {
-    // Create sample lessons for first unit
-    for (int level = 1; level <= 3; level++) {
-      createSampleLesson('unit_1', 'level_1_$level');
-    }
-    
-    print('Created sample lessons for testing');
   }
 
   /// Helper methods for state management
@@ -250,6 +282,7 @@ class LessonsProvider extends ChangeNotifier {
   /// Clears all lessons (for testing/debugging)
   void clearAllLessons() {
     _lessons.clear();
+    _saveToDisk(); // Persist to storage
     notifyListeners();
     print('Cleared all lessons');
   }
