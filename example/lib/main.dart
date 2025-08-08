@@ -10,10 +10,15 @@ import 'providers/sections_provider.dart';
 import 'providers/navigation_provider.dart';
 import 'providers/user_stats_provider.dart';
 import 'data/providers/units_provider.dart';
+import 'data/providers/lessons_provider.dart';
 import 'services/language_provider.dart';
 import 'theme/app_colors.dart';
 import 'presentation/pages/units_page.dart';
+import 'presentation/pages/lesson_page.dart';
 import 'controllers/page_transition_controller.dart';
+
+// Admin configuration - set to true to enable CRUD features
+const bool adminLogin = true;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +48,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
+        ChangeNotifierProvider(create: (_) => LessonsProvider()),
       ],
       child: GetMaterialApp(
         title: 'Huda Avatar',
@@ -55,6 +61,14 @@ class MyApp extends StatelessWidget {
             return UnitsPage(
               sectionId: args?['sectionId'],
               unitId: args?['unitId'],
+            );
+          },
+          '/lesson': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+            return LessonPage(
+              unitId: args?['unitId'] ?? '',
+              levelId: args?['levelId'] ?? '',
+              adminMode: adminLogin,
             );
           },
         },
