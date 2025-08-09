@@ -205,7 +205,12 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
   }
 
   Widget _buildPage(PageModel page) {
-    return ExerciseWidgetFactory.build(page);
+    return ExerciseWidgetFactory.build(
+      page,
+      onContinue: () {
+        _goToNextPage();
+      },
+    );
   }
 
   Widget _buildNavigationControls() {
