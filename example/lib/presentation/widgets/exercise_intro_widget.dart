@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../../data/models/page_model.dart';
+import '../../main.dart'; // For AvatarProvider
 import 'package:avatar_sts2/avatar_sts2.dart';
 
 /// Widget for displaying exercise introduction with video, headers, and interactive elements
@@ -25,6 +27,7 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
   bool _videoWatched = false;
   bool _microphoneUsed = false;
   bool _isProcessingMessages = false;
+  bool _videoError = false; // Track video loading errors
   TavusAvatar? _avatar; // This should be passed from parent or provider
   
   // UI state
@@ -35,6 +38,14 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     super.initState();
     _initializeVideo();
     _processInitialTriggers();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Get avatar from AvatarProvider
+    final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
+    _avatar = avatarProvider.avatar;
   }
 
   @override
@@ -72,8 +83,10 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     final videoName = exerciseData['videoName'] as String?;
     
     if (videoName != null) {
+      print("Initializing video: assets/videos/$videoName");
       _videoController = VideoPlayerController.asset('assets/videos/$videoName');
       _videoController!.initialize().then((_) {
+        print("Video initialized successfully: $videoName");
         setState(() {
           _isVideoReady = true;
         });
@@ -88,6 +101,14 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
         if (autoPlay && videoTrigger == 'onStart') {
           _videoController!.play();
         }
+      }).catchError((error) {
+        print("Error initializing video $videoName: $error");
+        setState(() {
+          _isVideoReady = false;
+          _videoError = true; // Set error flag for UI display
+          _videoController?.dispose();
+          _videoController = null;
+        });
       });
     }
   }
@@ -214,25 +235,30 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     
     return Container(
       color: const Color(0xFFF2EFEB),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+      child: Column(
+        children: [
+          // Scrollable content section
+          Flexible(
+            child: SingleChildScrollView(
               child: Column(
                 children: [
                   _buildHeaderRow(exerciseData),
                   _buildVideoSection(exerciseData),
                   _buildHeader2(exerciseData),
-                  const Spacer(),
-                  _buildMicrophoneSection(exerciseData),
-                  _buildContinueButton(exerciseData),
-                  const SizedBox(height: 20),
                 ],
               ),
             ),
-          );
-        },
+          ),
+          
+          // Fixed bottom section
+          Column(
+            children: [
+              _buildMicrophoneSection(exerciseData),
+              _buildContinueButton(exerciseData),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -301,7 +327,9 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
             borderRadius: BorderRadius.circular(12),
             color: Colors.black,
           ),
-          child: _isVideoReady
+          child: _videoError
+              ? _buildVideoErrorState() 
+              : _isVideoReady
               ? Stack(
                   children: [
                     ClipRRect(
@@ -375,6 +403,47 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildVideoErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: Colors.red[400],
+            size: 48,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Video failed to load',
+            style: TextStyle(color: Colors.white, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Please try again later',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _videoError = false;
+                _isVideoReady = false;
+              });
+              _initializeVideo();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }

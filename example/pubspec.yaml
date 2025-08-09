@@ -32,7 +32,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/videos/intro_final.mp4
+    - assets/videos/
     - assets/images/
     - assets/images/flags/
     - assets/images/letters/

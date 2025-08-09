@@ -15,6 +15,7 @@ import 'presentation/pages/units_page.dart';
 import 'presentation/pages/lesson_page.dart';
 import 'theme/app_colors.dart';
 import 'controllers/page_transition_controller.dart';
+import 'main.dart'; // For AvatarProvider
 
 // Test admin configuration - set to true to enable CRUD features in test
 const bool testAdminLogin = true;
@@ -85,6 +86,7 @@ class TestSectionsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
         ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsService, lessonsBox)),
+        ChangeNotifierProvider(create: (_) => AvatarProvider()), // Add AvatarProvider for testing
       ],
       child: GetMaterialApp(
         title: 'Sections Test',
@@ -201,6 +203,7 @@ class UnitsPageTest extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
         ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsService, _globalTestLessonsBox)),
+        ChangeNotifierProvider(create: (_) => AvatarProvider()), // Add AvatarProvider for testing
       ],
       child: GetMaterialApp(
         title: 'Units Test',

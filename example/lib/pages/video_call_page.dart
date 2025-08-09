@@ -119,6 +119,12 @@ class _VideoCallPageState extends State<VideoCallPage> with TickerProviderStateM
       ),
     );
     
+    // Share avatar instance with AvatarProvider for other widgets
+    if (mounted) {
+      final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
+      avatarProvider.setAvatar(_avatar!);
+    }
+    
     // Listen to avatar state changes
     _avatar!.stateStream.listen((state) {
       print("Avatar state changed: $state");
@@ -587,9 +593,10 @@ class _VideoCallPageState extends State<VideoCallPage> with TickerProviderStateM
     _messageController.dispose();
     _pipAnimationController.dispose();
     
-    // Dispose avatar if we own it
+    // Clear avatar from provider and dispose
     if (_avatar != null) {
-      _avatar!.dispose();
+      final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
+      avatarProvider.clearAvatar();
       _avatar = null;
     }
     
