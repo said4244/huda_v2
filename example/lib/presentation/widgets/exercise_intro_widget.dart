@@ -31,18 +31,27 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
   bool _isProcessingMessages = false;
   bool _hasPlayedIntro = false;
   bool _videoError = false;
+  bool _waitingForGreeting = false;
+  bool _greetingCompleted = false;
   TavusAvatar? _avatar;
   
   // UI state
   bool _isMicPressed = false;
   
+  // Message tracking for debugging
+  String? _currentMessageId;
+  List<Map<String, dynamic>> _validatedMessages = [];
+  
+  // Stream subscriptions for proper cleanup
+  StreamSubscription<Map<String, dynamic>>? _avatarEventSubscription;
+  
   @override
   void initState() {
     super.initState();
     _initializeVideo();
-    // Run auto sequence after widget is built
+    // Don't run auto sequence immediately - wait for greeting to complete
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _runAutoSequence();
+      _setupGreetingListener();
     });
   }
 
@@ -52,6 +61,65 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     // Get avatar from AvatarProvider
     final avatarProvider = Provider.of<AvatarProvider>(context, listen: false);
     _avatar = avatarProvider.avatar;
+    
+    // Set up event listener if avatar is available
+    if (_avatar != null && _avatarEventSubscription == null) {
+      _setupAvatarEventListener();
+    }
+  }
+
+  /// Set up event listener for avatar events
+  void _setupAvatarEventListener() {
+    if (_avatar == null) return;
+    
+    _avatarEventSubscription?.cancel();
+    _avatarEventSubscription = _avatar!.eventStream.listen((event) {
+      final eventType = event['type'] as String?;
+      print('🎤 Avatar event: $eventType');
+      
+      if (eventType == 'avatar_speech_ended') {
+        if (_waitingForGreeting && !_greetingCompleted) {
+          print('✅ Greeting completed, starting lesson sequence');
+          setState(() {
+            _greetingCompleted = true;
+            _waitingForGreeting = false;
+          });
+          _runAutoSequence();
+        }
+      } else if (eventType == 'avatar_speech_started') {
+        if (_currentMessageId != null) {
+          print('🗣️ Avatar started speaking message: $_currentMessageId');
+        }
+      }
+    });
+  }
+
+  /// Set up listener to wait for avatar greeting to complete
+  void _setupGreetingListener() {
+    if (_avatar == null || !_avatar!.isConnected) {
+      // No avatar or not connected, start sequence immediately
+      _runAutoSequence();
+      return;
+    }
+    
+    // Check if we should wait for greeting
+    // For now, we'll wait 2 seconds after connection to allow greeting
+    print('⏳ Waiting for avatar greeting to complete...');
+    setState(() {
+      _waitingForGreeting = true;
+    });
+    
+    // Setup timeout fallback - start sequence anyway if no speech event received
+    Timer(const Duration(seconds: 3), () {
+      if (_waitingForGreeting && !_greetingCompleted) {
+        print('⚠️ Greeting timeout, starting sequence anyway');
+        setState(() {
+          _waitingForGreeting = false;
+          _greetingCompleted = true;
+        });
+        _runAutoSequence();
+      }
+    });
   }
 
   @override
@@ -60,24 +128,35 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     
     // Check if exercise data has changed
     if (oldWidget.page.exerciseData != widget.page.exerciseData) {
+      print('📝 Exercise data changed, resetting widget state');
+      
+      // Cancel any pending operations
+      _avatarEventSubscription?.cancel();
+      _avatarEventSubscription = null;
+      
       // Dispose old video controller
       _videoController?.dispose();
       _videoController = null;
       
-      // Reset state
+      // Reset all state flags
       _isVideoReady = false;
       _videoWatched = false;
       _microphoneUsed = false;
       _isProcessingMessages = false;
       _hasPlayedIntro = false;
       _videoError = false;
+      _waitingForGreeting = false;
+      _greetingCompleted = false;
+      _currentMessageId = null;
+      _validatedMessages = [];
       
       // Reinitialize with new data
       _initializeVideo();
       
-      // Re-run auto sequence after rebuild
+      // Re-setup avatar listener and greeting detection
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _runAutoSequence();
+        _setupAvatarEventListener();
+        _setupGreetingListener();
       });
       
       setState(() {});
@@ -86,7 +165,20 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
 
   @override
   void dispose() {
+    print('🧹 Disposing ExerciseIntroWidget - cleaning up resources');
+    
+    // Cancel avatar event subscription
+    _avatarEventSubscription?.cancel();
+    
+    // Dispose video controller
     _videoController?.dispose();
+    
+    // If still processing messages, mark as aborted
+    if (_isProcessingMessages) {
+      print('⚠️ Widget disposed while processing messages - marking as aborted');
+      _isProcessingMessages = false;
+    }
+    
     super.dispose();
   }
 
@@ -125,8 +217,89 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
           _videoWatched = true;
         });
         
-        // Trigger afterVideo messages when the main video completes
-        _triggerAfterVideoMessages();
+        // Only trigger afterVideo messages here if not already handled in sequence
+        if (!_isProcessingMessages) {
+          print('🎬 Video completed outside of sequence - triggering afterVideo messages');
+          _triggerAfterVideoMessages();
+        } else {
+          print('🎬 Video completed during sequence - afterVideo handling delegated to sequence processor');
+        }
+      }
+    }
+  }
+
+  /// Validate and prepare messages for processing
+  List<Map<String, dynamic>> _validateAndPrepareMessages(List<dynamic> sendMessages) {
+    final messages = <Map<String, dynamic>>[];
+    final seenIds = <String>{};
+    
+    print('🔍 Validating ${sendMessages.length} messages...');
+    
+    for (int i = 0; i < sendMessages.length; i++) {
+      final msg = Map<String, dynamic>.from(sendMessages[i]);
+      
+      // Generate stable ID if missing
+      if (msg['id'] == null || (msg['id'] as String).isEmpty) {
+        // Use content hash for stable ID generation
+        final content = msg['content'] as String? ?? '';
+        final type = msg['type'] as String? ?? 'unknown';
+        msg['id'] = 'msg_${type}_${content.hashCode.abs()}_$i';
+        print('🏷️ Generated ID for message $i: ${msg['id']}');
+      }
+      
+      // Check for duplicate IDs
+      final messageId = msg['id'] as String;
+      if (seenIds.contains(messageId)) {
+        print('⚠️ Duplicate message ID detected: $messageId - skipping duplicate');
+        continue;
+      }
+      seenIds.add(messageId);
+      
+      // Set default trigger if missing
+      if (msg['trigger'] == null) {
+        msg['trigger'] = 'onStart';
+      }
+      
+      // Set default type if missing
+      if (msg['type'] == null) {
+        msg['type'] = 'avatarMessage';
+      }
+      
+      // Validate content for avatar messages
+      if (msg['type'] == 'avatarMessage') {
+        final content = (msg['content'] as String? ?? '').trim();
+        if (content.isEmpty) {
+          print('❌ Skipping avatar message with empty content: $messageId');
+          continue;
+        }
+        if (content.length > 500) {
+          print('⚠️ Avatar message is very long (${content.length} chars): $messageId');
+        }
+      }
+      
+      messages.add(msg);
+    }
+    
+    // Validate trigger references
+    _validateTriggerReferences(messages);
+    
+    print('✅ Validated ${messages.length} messages (${sendMessages.length - messages.length} filtered out)');
+    return messages;
+  }
+
+  /// Validate that trigger references point to existing messages
+  void _validateTriggerReferences(List<Map<String, dynamic>> messages) {
+    final messageIds = messages.map((m) => m['id'] as String).toSet();
+    
+    for (final message in messages) {
+      final trigger = message['trigger'] as String?;
+      final afterId = message['afterId'] as String?;
+      
+      if ((trigger == 'afterMessage' || trigger == 'afterVideo') && afterId != null) {
+        // Check if afterId exists in message list or is a valid video reference
+        if (!messageIds.contains(afterId) && !afterId.startsWith('video_')) {
+          print('⚠️ Broken trigger reference in ${message['id']}: afterId "$afterId" not found');
+        }
       }
     }
   }
@@ -139,14 +312,8 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     
     if (videoName == null) return;
     
-    // Convert to proper message objects
-    final messages = sendMessages.map((msg) {
-      final message = Map<String, dynamic>.from(msg);
-      if (message['id'] == null) {
-        message['id'] = 'msg_${DateTime.now().millisecondsSinceEpoch}_${message.hashCode.abs()}';
-      }
-      return message;
-    }).toList();
+    // Validate and prepare messages
+    final messages = _validateAndPrepareMessages(sendMessages);
     
     // Find messages that should trigger after this video
     final afterVideoMessages = messages.where((msg) {
@@ -155,7 +322,7 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
       return trigger == 'afterVideo' && afterId == 'video_$videoName';
     }).toList();
     
-    print('Video "$videoName" completed. Found ${afterVideoMessages.length} afterVideo messages to process');
+    print('🎬 Video "$videoName" completed. Found ${afterVideoMessages.length} afterVideo messages to process');
     
     // Process each afterVideo message
     for (final message in afterVideoMessages) {
@@ -165,8 +332,12 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
 
   /// Main sequencing method - replaces _processInitialTriggers and _processSendMessages
   Future<void> _runAutoSequence() async {
-    if (_isProcessingMessages || _hasPlayedIntro) return;
+    if (_isProcessingMessages || _hasPlayedIntro) {
+      print('⏭️ Skipping auto sequence: processing=$_isProcessingMessages, played=$_hasPlayedIntro');
+      return;
+    }
     
+    print('🚀 Starting auto sequence...');
     setState(() {
       _isProcessingMessages = true;
     });
@@ -175,17 +346,8 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
       final exerciseData = widget.page.exerciseData ?? {};
       final sendMessages = exerciseData['sendMessages'] as List<dynamic>? ?? [];
       
-      // Convert to proper message objects and ensure IDs exist
-      final messages = sendMessages.map((msg) {
-        final message = Map<String, dynamic>.from(msg);
-        if (message['id'] == null) {
-          message['id'] = 'msg_${DateTime.now().millisecondsSinceEpoch}_${message.hashCode.abs()}';
-        }
-        if (message['trigger'] == null) {
-          message['trigger'] = 'onStart';
-        }
-        return message;
-      }).toList();
+      // Validate and prepare messages with enhanced logging
+      _validatedMessages = _validateAndPrepareMessages(sendMessages);
 
       // Add legacy video as message if videoTrigger is set (backward compatibility)
       final videoName = exerciseData['videoName'] as String?;
@@ -193,6 +355,7 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
       final autoPlay = exerciseData['autoPlay'] as bool? ?? false;
       
       if (videoName != null && autoPlay) {
+        print('📹 Adding legacy video message: $videoName (trigger: $videoTrigger)');
         final videoMessage = {
           'id': 'legacy_video_${DateTime.now().millisecondsSinceEpoch}',
           'type': 'video',
@@ -201,31 +364,41 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
         };
         
         // If afterAvatarX, convert to afterMessage format
-        if (videoTrigger.startsWith('afterAvatar') && messages.isNotEmpty) {
+        if (videoTrigger.startsWith('afterAvatar') && _validatedMessages.isNotEmpty) {
           // Find the appropriate avatar message to follow
-          final avatarMessages = messages.where((m) => m['type'] == 'avatarMessage').toList();
+          final avatarMessages = _validatedMessages.where((m) => m['type'] == 'avatarMessage').toList();
           if (avatarMessages.isNotEmpty) {
             videoMessage['afterId'] = avatarMessages.first['id'];
+            print('🔗 Linking video to avatar message: ${avatarMessages.first['id']}');
           }
         }
         
-        messages.add(videoMessage);
+        _validatedMessages.add(videoMessage);
       }
 
       // Process onStart messages first
-      final onStartMessages = messages.where((msg) => msg['trigger'] == 'onStart').toList();
+      final onStartMessages = _validatedMessages.where((msg) => msg['trigger'] == 'onStart').toList();
+      print('▶️ Processing ${onStartMessages.length} onStart messages');
+      
       for (final message in onStartMessages) {
-        await _processMessage(message, messages);
+        if (!mounted || !_isProcessingMessages) {
+          print('⚠️ Sequence aborted - widget disposed or stopped');
+          break;
+        }
+        await _processMessage(message, _validatedMessages);
       }
 
-      print('Auto sequence completed');
-    } catch (e) {
-      print('Error in auto sequence: $e');
+      print('✅ Auto sequence completed successfully');
+    } catch (e, stackTrace) {
+      print('❌ Error in auto sequence: $e');
+      print('Stack trace: $stackTrace');
     } finally {
-      setState(() {
-        _isProcessingMessages = false;
-        _hasPlayedIntro = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessingMessages = false;
+          _hasPlayedIntro = true;
+        });
+      }
     }
   }
 
@@ -235,34 +408,63 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     final content = message['content'] as String? ?? '';
     final messageId = message['id'] as String;
     
-    print('Processing message: $messageId (type: $type)');
+    print('🎯 Processing message: $messageId (type: $type)');
+    _currentMessageId = messageId;
 
-    if (type == 'avatarMessage' && _avatar != null) {
-      // Send avatar message and wait for speech end
-      await _avatar!.sendMessageAndWait(content, timeout: const Duration(seconds: 15));
-    } else if (type == 'video' && _videoController != null) {
-      // Play video and wait for completion
-      await _playVideoAndWait();
-    }
-
-    // After finishing this message, look for chained messages
-    await _processChainedMessages(messageId, allMessages);
-    
-    // Special handling for video completion: check for afterVideo triggers
-    if (type == 'video') {
-      final exerciseData = widget.page.exerciseData ?? {};
-      final videoName = exerciseData['videoName'] as String?;
-      if (videoName != null) {
-        // Process messages that are waiting for this specific video to complete
-        await _processChainedMessages('video_$videoName', allMessages);
+    try {
+      if (type == 'avatarMessage' && _avatar != null) {
+        // Validate content before sending
+        final trimmedContent = content.trim();
+        if (trimmedContent.isEmpty) {
+          print('⚠️ Skipping avatar message with empty content: $messageId');
+          return;
+        }
+        
+        print('🗣️ Sending avatar message: "${trimmedContent.length > 50 ? trimmedContent.substring(0, 50) + '...' : trimmedContent}"');
+        
+        // Send avatar message and wait for speech end
+        await _avatar!.sendMessageAndWait(trimmedContent, timeout: const Duration(seconds: 15));
+        print('✅ Avatar message completed: $messageId');
+        
+      } else if (type == 'video' && _videoController != null) {
+        print('📹 Playing video: $content');
+        
+        // Play video and wait for completion
+        await _playVideoAndWait();
+        print('✅ Video completed: $messageId');
+      } else {
+        print('⚠️ Unsupported message type or missing resources: $type');
       }
+
+      // After finishing this message, look for chained messages
+      await _processChainedMessages(messageId, allMessages);
+      
+      // Special handling for video completion: check for afterVideo triggers
+      if (type == 'video') {
+        final exerciseData = widget.page.exerciseData ?? {};
+        final videoName = exerciseData['videoName'] as String?;
+        if (videoName != null) {
+          print('🔗 Processing afterVideo chains for: video_$videoName');
+          // Process messages that are waiting for this specific video to complete
+          await _processChainedMessages('video_$videoName', allMessages);
+        }
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error processing message $messageId: $e');
+      print('Stack trace: $stackTrace');
+    } finally {
+      _currentMessageId = null;
     }
   }
 
   /// Play video and wait for it to complete
   Future<void> _playVideoAndWait() async {
-    if (_videoController == null || !_isVideoReady) return;
+    if (_videoController == null || !_isVideoReady) {
+      print('⚠️ Cannot play video: controller=${_videoController != null}, ready=$_isVideoReady');
+      return;
+    }
 
+    print('▶️ Starting video playback...');
     final completer = Completer<void>();
     
     // Listen for video completion using video player's position
@@ -273,8 +475,10 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
         setState(() {
           _videoWatched = true;
         });
-        print('Video completed - triggering chained messages');
-        completer.complete();
+        print('🎬 Video playback completed');
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
       }
     };
     
@@ -282,13 +486,20 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     _videoController!.play();
     
     // Wait for completion or timeout
-    await completer.future.timeout(
-      const Duration(seconds: 30),
-      onTimeout: () {
-        _videoController!.removeListener(listener);
-        print('Video playback timed out');
-      },
-    );
+    try {
+      await completer.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          print('⏰ Video playback timed out after 30 seconds');
+          _videoController!.removeListener(listener);
+          throw TimeoutException('Video playback timeout', const Duration(seconds: 30));
+        },
+      );
+    } catch (e) {
+      _videoController!.removeListener(listener);
+      print('❌ Video playback error: $e');
+      rethrow;
+    }
   }
 
   /// Process messages that should play after the given messageId
@@ -299,19 +510,35 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
       return (trigger == 'afterMessage' || trigger == 'afterVideo') && afterId == messageId;
     }).toList();
 
-    for (final chainedMessage in chainedMessages) {
-      await _processMessage(chainedMessage, allMessages);
+    if (chainedMessages.isNotEmpty) {
+      print('🔗 Found ${chainedMessages.length} chained messages for: $messageId');
+      for (final chainedMessage in chainedMessages) {
+        if (!mounted || !_isProcessingMessages) {
+          print('⚠️ Chained message processing aborted - widget disposed or stopped');
+          break;
+        }
+        await _processMessage(chainedMessage, allMessages);
+      }
+    } else {
+      print('📝 No chained messages found for: $messageId');
     }
   }
 
   /// Restart intro if needed (called from LessonPage on navigation)
   void restartIntroIfNeeded() {
     if (!_isProcessingMessages && _hasPlayedIntro && _avatar != null) {
-      // Reset state and restart
+      print('🔄 Restarting intro sequence...');
+      
+      // Reset all state flags for fresh restart
       setState(() {
         _hasPlayedIntro = false;
         _videoWatched = false;
         _microphoneUsed = false;
+        _isProcessingMessages = false;
+        _waitingForGreeting = false;
+        _greetingCompleted = false;
+        _currentMessageId = null;
+        _validatedMessages = [];
       });
       
       // Restart video if it exists
@@ -319,14 +546,32 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
         _videoController!.seekTo(Duration.zero);
       }
       
-      _runAutoSequence();
+      // Restart the greeting detection and sequence
+      _setupGreetingListener();
+    } else {
+      print('⏭️ Skipping restart: processing=$_isProcessingMessages, played=$_hasPlayedIntro, avatar=${_avatar != null}');
     }
   }
 
   /// Pause media when page is not visible
   void pauseMedia() {
+    print('⏸️ Pausing media due to page navigation');
+    
+    // Pause video
     _videoController?.pause();
-    // Note: Avatar session handling could be added here if needed
+    
+    // Disable microphone if avatar is connected
+    if (_avatar != null && _avatar!.isConnected) {
+      _avatar!.setMicrophoneEnabled(false);
+    }
+    
+    // Mark processing as stopped if currently running
+    if (_isProcessingMessages) {
+      print('⚠️ Stopping message processing due to page navigation');
+      setState(() {
+        _isProcessingMessages = false;
+      });
+    }
   }
 
   void _onMicrophonePressStart() {

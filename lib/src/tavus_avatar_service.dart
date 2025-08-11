@@ -147,9 +147,15 @@ class TavusAvatar {
 
   /// Send a text message to the avatar agent
   Future<void> sendTextMessage(String message) async {
-    TavusLogger.info('sendTextMessage called with: "$message"');
-    TavusLogger.info('isConnected: $isConnected');
-    TavusLogger.info('Connection state: $_state');
+    // Validate content
+    final trimmedMessage = message.trim();
+    if (trimmedMessage.isEmpty) {
+      TavusLogger.error('Attempted to send empty message to avatar');
+      throw ArgumentError('Message content cannot be empty');
+    }
+    
+    TavusLogger.info('📤 sendTextMessage called with: "${trimmedMessage.length > 50 ? trimmedMessage.substring(0, 50) + '...' : trimmedMessage}" (${trimmedMessage.length} chars)');
+    TavusLogger.info('🔌 Connection check - isConnected: $isConnected, state: $_state');
     
     if (!isConnected) {
       TavusLogger.error('Avatar not connected - cannot send message');
@@ -158,29 +164,44 @@ class TavusAvatar {
     
     final data = json.encode({
       'type': 'user_message',
-      'content': message,
+      'content': trimmedMessage,
     });
     
-    TavusLogger.info('Sending message data: $data');
+    TavusLogger.info('📨 Sending message data to room...');
     await publishData(data);
-    TavusLogger.info('Message sent successfully');
+    TavusLogger.info('✅ Message sent successfully to avatar');
   }
 
   /// Send a text message and wait for avatar to finish speaking
   Future<void> sendMessageAndWait(String content, {Duration? timeout}) async {
-    TavusLogger.info('sendMessageAndWait called with: "$content"');
+    // Validate content first
+    final trimmedContent = content.trim();
+    if (trimmedContent.isEmpty) {
+      TavusLogger.error('Cannot send empty message content');
+      throw ArgumentError('Message content cannot be empty');
+    }
+    
+    TavusLogger.info('📤 sendMessageAndWait called with: "${trimmedContent.length > 100 ? trimmedContent.substring(0, 100) + '...' : trimmedContent}"');
+    TavusLogger.info('🔌 Connection status - isConnected: $isConnected, state: $_state');
     
     if (!isConnected) {
+      TavusLogger.error('Avatar not connected - cannot send message');
       throw Exception('Avatar not connected');
     }
     
     final completer = Completer<void>();
     late StreamSubscription sub;
+    bool speechStarted = false;
     
-    // Listen for speech ended events
+    // Listen for speech events with enhanced logging
     sub = eventStream.listen((event) {
-      if (event['type'] == 'avatar_speech_ended') {
-        TavusLogger.info('Received avatar_speech_ended event, completing wait');
+      final eventType = event['type'] as String?;
+      
+      if (eventType == 'avatar_speech_started') {
+        speechStarted = true;
+        TavusLogger.info('🗣️ Avatar started speaking (message content length: ${trimmedContent.length})');
+      } else if (eventType == 'avatar_speech_ended') {
+        TavusLogger.info('✅ Avatar finished speaking - completing sendMessageAndWait');
         sub.cancel();
         if (!completer.isCompleted) {
           completer.complete();
@@ -190,19 +211,23 @@ class TavusAvatar {
     
     try {
       // Send the message
-      await sendTextMessage(content);
+      TavusLogger.info('📨 Sending message to avatar...');
+      await sendTextMessage(trimmedContent);
+      TavusLogger.info('📨 Message sent successfully, waiting for speech events...');
       
       // Wait either for the EOS event or an optional timeout
       if (timeout != null) {
         return completer.future.timeout(timeout, onTimeout: () {
-          TavusLogger.warning('sendMessageAndWait timed out after ${timeout.inSeconds}s');
+          TavusLogger.warning('⏰ sendMessageAndWait timed out after ${timeout.inSeconds}s');
+          TavusLogger.warning('Speech started: $speechStarted');
           sub.cancel();
-          return;
+          throw TimeoutException('Avatar response timeout');
         });
       } else {
         return completer.future;
       }
     } catch (e) {
+      TavusLogger.error('❌ Error in sendMessageAndWait', e);
       sub.cancel();
       rethrow;
     }
