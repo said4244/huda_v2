@@ -459,9 +459,37 @@ async def entrypoint(ctx: agents.JobContext):
                     if data_obj.get('type') == 'user_message':
                         content = data_obj.get('content', '')
                         try:
-                            await session.generate_reply(instructions=content)
+                            # Emit speech started event
+                            speech_started_msg = json.dumps({"type": "avatar_speech_started"})
+                            await ctx.room.local_participant.publish_data(
+                                speech_started_msg.encode('utf-8'), reliable=True, topic="avatar"
+                            )
+                            logger.debug("Emitted avatar_speech_started event")
+                            
+                            # Generate the reply (includes TTS streaming)
+                            handle = await session.generate_reply(instructions=content)
+                            
+                            # Wait for the TTS audio to finish playing to LiveKit
+                            await handle.wait_for_playout()
+                            logger.debug("TTS playout completed")
+                            
+                            # Authoritatively signal EOS to clients
+                            speech_ended_msg = json.dumps({"type": "avatar_speech_ended"})
+                            await ctx.room.local_participant.publish_data(
+                                speech_ended_msg.encode('utf-8'), reliable=True, topic="avatar"
+                            )
+                            logger.debug("Emitted avatar_speech_ended event")
+                            
                         except Exception as e:
                             logger.error(f"Error processing prompt: {e}", exc_info=True)
+                            # Even if there's an error, signal that speech ended
+                            try:
+                                error_msg = json.dumps({"type": "avatar_speech_ended"})
+                                await ctx.room.local_participant.publish_data(
+                                    error_msg.encode('utf-8'), reliable=True, topic="avatar"
+                                )
+                            except:
+                                pass
                 except json.JSONDecodeError as e:
                     logger.error(f"Error parsing data message as JSON: {e}, Raw data: {data_packet.data}")
                 except Exception as e:
@@ -474,7 +502,27 @@ async def entrypoint(ctx: agents.JobContext):
         # ------------------------------------------------------------------
         try:
             await asyncio.sleep(1.5)
-            await session.generate_reply(instructions=greeting_message)
+            # Emit speech started event for greeting
+            greeting_started_msg = json.dumps({"type": "avatar_speech_started"})
+            await ctx.room.local_participant.publish_data(
+                greeting_started_msg.encode('utf-8'), reliable=True, topic="avatar"
+            )
+            logger.debug("Emitted avatar_speech_started event for greeting")
+            
+            # Generate greeting
+            handle = await session.generate_reply(instructions=greeting_message)
+            
+            # Wait for greeting TTS to finish
+            await handle.wait_for_playout()
+            logger.debug("Greeting TTS playout completed")
+            
+            # Signal greeting speech ended
+            greeting_ended_msg = json.dumps({"type": "avatar_speech_ended"})
+            await ctx.room.local_participant.publish_data(
+                greeting_ended_msg.encode('utf-8'), reliable=True, topic="avatar"
+            )
+            logger.debug("Emitted avatar_speech_ended event for greeting")
+            
         except Exception as greeting_error:
             logger.warning(f"Could not send initial greeting: {greeting_error}")
             error_str = str(greeting_error).lower()

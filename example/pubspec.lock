@@ -336,7 +336,7 @@ packages:
     source: hosted
     version: "3.0.0"
   livekit_client:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: livekit_client
       sha256: "5d182f40cc9aafce60a9acf936bad8bc69010b5cbf0a949f6f27dc4390f2fcce"

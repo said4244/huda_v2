@@ -166,6 +166,90 @@ class TavusAvatar {
     TavusLogger.info('Message sent successfully');
   }
 
+  /// Send a text message and wait for avatar to finish speaking
+  Future<void> sendMessageAndWait(String content, {Duration? timeout}) async {
+    TavusLogger.info('sendMessageAndWait called with: "$content"');
+    
+    if (!isConnected) {
+      throw Exception('Avatar not connected');
+    }
+    
+    final completer = Completer<void>();
+    late StreamSubscription sub;
+    
+    // Listen for speech ended events
+    sub = eventStream.listen((event) {
+      if (event['type'] == 'avatar_speech_ended') {
+        TavusLogger.info('Received avatar_speech_ended event, completing wait');
+        sub.cancel();
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      }
+    });
+    
+    try {
+      // Send the message
+      await sendTextMessage(content);
+      
+      // Wait either for the EOS event or an optional timeout
+      if (timeout != null) {
+        return completer.future.timeout(timeout, onTimeout: () {
+          TavusLogger.warning('sendMessageAndWait timed out after ${timeout.inSeconds}s');
+          sub.cancel();
+          return;
+        });
+      } else {
+        return completer.future;
+      }
+    } catch (e) {
+      sub.cancel();
+      rethrow;
+    }
+  }
+
+  /// Send a system prompt and wait for avatar to finish responding
+  Future<void> publishSystemPromptAndWait(Map<String, dynamic> prompt, {Duration? timeout}) async {
+    TavusLogger.info('publishSystemPromptAndWait called');
+    
+    if (!isConnected) {
+      throw Exception('Avatar not connected');
+    }
+    
+    final completer = Completer<void>();
+    late StreamSubscription sub;
+    
+    // Listen for speech ended events
+    sub = eventStream.listen((event) {
+      if (event['type'] == 'avatar_speech_ended') {
+        TavusLogger.info('Received avatar_speech_ended event for system prompt, completing wait');
+        sub.cancel();
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      }
+    });
+    
+    try {
+      // Send the system prompt
+      await publishData(json.encode(prompt));
+      
+      // Wait either for the EOS event or an optional timeout
+      if (timeout != null) {
+        return completer.future.timeout(timeout, onTimeout: () {
+          TavusLogger.warning('publishSystemPromptAndWait timed out after ${timeout.inSeconds}s');
+          sub.cancel();
+          return;
+        });
+      } else {
+        return completer.future;
+      }
+    } catch (e) {
+      sub.cancel();
+      rethrow;
+    }
+  }
+
   /// Control microphone state directly via room participant
   Future<void> setMicrophoneEnabled(bool enabled) async {
     try {

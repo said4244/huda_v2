@@ -12,6 +12,10 @@ class ConnectionManager {
   RemoteVideoTrack? _avatarVideoTrack;
   // Note: Audio track is handled automatically by LiveKit
   
+  // Speech-end detection state
+  bool _avatarSpeaking = false;
+  Timer? _speechEndTimer;
+  
   final String tokenUrl;
   final String? livekitUrl;
   final String roomName;
@@ -197,6 +201,12 @@ class ConnectionManager {
       ..on<RoomReconnectedEvent>((event) {
         TavusLogger.info('Room reconnected');
         _checkForAvatarParticipant();
+      })
+      ..on<DataReceivedEvent>((event) {
+        _handleDataReceived(event);
+      })
+      ..on<ActiveSpeakersChangedEvent>((event) {
+        _handleActiveSpeakersChanged(event);
       });
   }
 
@@ -262,6 +272,61 @@ class ConnectionManager {
     }
   }
 
+  void _handleDataReceived(DataReceivedEvent event) {
+    try {
+      final decodedData = utf8.decode(event.data);
+      final msg = jsonDecode(decodedData) as Map<String, dynamic>;
+      
+      TavusLogger.debug('Received data message: ${msg['type']}');
+      
+      if (msg['type'] == 'avatar_speech_ended') {
+        // Cancel any pending VAD timer since we have authoritative signal
+        _speechEndTimer?.cancel();
+        _speechEndTimer = null;
+        _avatarSpeaking = false;
+        
+        TavusLogger.info('Avatar speech ended (server signal)');
+        _notifyEvent('avatar_speech_ended', {});
+      } else if (msg['type'] == 'avatar_speech_started') {
+        // Cancel any pending speech end timer
+        _speechEndTimer?.cancel();
+        _speechEndTimer = null;
+        _avatarSpeaking = true;
+        
+        TavusLogger.info('Avatar speech started (server signal)');
+        _notifyEvent('avatar_speech_started', {});
+      }
+    } catch (e) {
+      TavusLogger.warning('Error processing data message: $e');
+    }
+  }
+
+  void _handleActiveSpeakersChanged(ActiveSpeakersChangedEvent event) {
+    if (_avatarParticipant == null) return;
+    
+    final avatarId = _avatarParticipant!.identity;
+    final isSpeakingNow = event.speakers.any((p) => p.identity == avatarId);
+    
+    if (!isSpeakingNow && _avatarSpeaking) {
+      // Avatar stopped speaking; start debounce timer
+      TavusLogger.debug('Avatar stopped speaking, starting debounce timer');
+      _speechEndTimer?.cancel();
+      _speechEndTimer = Timer(const Duration(milliseconds: 600), () {
+        if (!_avatarSpeaking) {
+          TavusLogger.info('Avatar speech ended (VAD fallback)');
+          _notifyEvent('avatar_speech_ended', {});
+        }
+      });
+    } else if (isSpeakingNow && !_avatarSpeaking) {
+      // Avatar started speaking; cancel pending EOS
+      TavusLogger.debug('Avatar started speaking');
+      _speechEndTimer?.cancel();
+      _speechEndTimer = null;
+      _avatarSpeaking = true;
+      _notifyEvent('avatar_speech_started', {});
+    }
+  }
+
   Future<void> disconnect() async {
     TavusLogger.info('Disconnecting from avatar session');
     
@@ -276,6 +341,9 @@ class ConnectionManager {
   }
 
   void _cleanup() {
+    _speechEndTimer?.cancel();
+    _speechEndTimer = null;
+    _avatarSpeaking = false;
     _listener?.dispose();
     _room?.dispose();
     _room = null;

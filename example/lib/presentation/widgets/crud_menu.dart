@@ -799,6 +799,9 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   }
 
   Widget _buildMessageItem(int index, Map<String, dynamic> message) {
+    final messageType = message['type'] as String;
+    final isAvatarMessage = messageType == 'avatarMessage';
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -819,9 +822,28 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
                 ),
               ],
             ),
-            Text('Type: ${message['type']}'),
+            Row(
+              children: [
+                Icon(
+                  isAvatarMessage ? Icons.chat : Icons.video_library,
+                  size: 16,
+                  color: isAvatarMessage ? Colors.blue : Colors.green,
+                ),
+                const SizedBox(width: 8),
+                Text('Type: ${message['type']}'),
+              ],
+            ),
             Text('Content: ${message['content']}'),
-            if (message['delaySeconds'] != null)
+            if (isAvatarMessage)
+              const Text(
+                'Timing: Waits for avatar speech to complete',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.green,
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            else if (message['delaySeconds'] != null)
               Text('Delay: ${message['delaySeconds']}s'),
           ],
         ),
@@ -830,14 +852,56 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   }
 
   void _addMessage() {
-    // Simple implementation - could be enhanced with a proper dialog
-    setState(() {
-      _sendMessages.add({
-        'type': 'avatarMessage',
-        'content': 'Hello!',
-        'delaySeconds': 2.0,
-      });
-    });
+    // Enhanced implementation with better defaults for speech-end detection
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Message'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Choose message type:'),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.chat),
+              title: const Text('Avatar Message'),
+              subtitle: const Text('Uses speech-end detection for timing'),
+              onTap: () {
+                setState(() {
+                  _sendMessages.add({
+                    'type': 'avatarMessage',
+                    'content': 'Hello! Welcome to this lesson.',
+                    'delaySeconds': 0.0, // No longer needed with speech-end detection
+                  });
+                });
+                Navigator.of(context).pop();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_library),
+              title: const Text('Video'),
+              subtitle: const Text('Plays after previous message completes'),
+              onTap: () {
+                setState(() {
+                  _sendMessages.add({
+                    'type': 'video',
+                    'content': '', // Video trigger, no content needed
+                    'delaySeconds': 0.0,
+                  });
+                });
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _removeMessage(int index) {
