@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
 import 'dart:async';
 import '../../data/models/page_model.dart';
 import '../../main.dart'; // For AvatarProvider
+import '../../providers/lesson_progress_provider.dart';
 import 'package:avatar_sts2/avatar_sts2.dart';
 
 /// Widget for displaying exercise introduction with video, headers, and interactive elements
@@ -37,6 +37,9 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
   
   // UI state
   bool _isMicPressed = false;
+  
+  // Progress tracking for double-click continue logic
+  bool _progressTriggered = false;
   
   // Message tracking for debugging
   String? _currentMessageId;
@@ -574,24 +577,48 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     }
   }
 
-  void _onMicrophonePressStart() {
+  Future<void> _onMicrophonePressStart() async {
+    if (_avatar == null) return;
     final exerciseData = widget.page.exerciseData ?? {};
-    final microphonePrompt = exerciseData['microphonePrompt'] as String? ?? '';
+    final word = (exerciseData['microphonePrompt'] as String? ?? '').trim();
+    
+    // Debug: verify CRUD plumbing
+    print('[ExerciseIntro] microphonePrompt="$word"');
     
     setState(() {
       _isMicPressed = true;
     });
 
-    if (_avatar != null && microphonePrompt.isNotEmpty) {
-      // Send context prompt
-      final contextPrompt = {
-        'type': 'system_prompt',
-        'content': 'The user will attempt to pronounce \'$microphonePrompt\'. Please evaluate their pronunciation: if at least 90% accurate, praise them; otherwise give corrective feedback.',
-      };
-      
-      _avatar!.publishData(jsonEncode(contextPrompt));
-      _avatar!.setMicrophoneEnabled(true);
+    if (word.isEmpty) {
+      // Fallback: just open mic (no special context)
+      await _avatar!.setMicrophoneEnabled(true);
+      return;
     }
+
+    // Build the one-turn system prompt
+    final prompt = <String, dynamic>{
+      'type': 'system_prompt',
+    };
+
+    // If you prefix your CRUD value with RAW:, use it verbatim
+    if (word.startsWith('RAW:')) {
+      prompt['purpose'] = 'debug_override';
+      prompt['content'] = word.substring(4);           // no wrapper
+    } else {
+      prompt['purpose'] = 'pronunciation';
+      prompt['content'] =
+          "The user will attempt to pronounce '$word'. Evaluate strictly but kindly in Syrian Arabic, "
+          "point out exact articulation (makhraj), then re-model the correct pronunciation in one short line.";
+    }
+
+    // Send prompt and wait briefly (or for server ACK) to avoid race with audio
+    try {
+      await _avatar!.publishSystemPromptAndWait(prompt,
+          timeout: const Duration(milliseconds: 600));
+    } catch (_) {
+      await Future.delayed(const Duration(milliseconds: 600));
+    }
+    await _avatar!.setMicrophoneEnabled(true);
   }
 
   void _onMicrophonePressEnd() async {
@@ -630,14 +657,29 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
   }
 
   void _onContinuePressed() {
-    // Mark exercise complete and call callback
+    // Only proceed if the continue button is enabled (_areRequirementsMet() is true).
+    // First click: trigger progress bar update
+    if (!_progressTriggered) {
+      _progressTriggered = true;
+      // Notify LessonProgressProvider to increment progress
+      Provider.of<LessonProgressProvider>(context, listen: false).incrementCompleted();
+      print('🎯 ExerciseIntroWidget: First continue click - progress updated');
+      
+      // Provide visual feedback that something happened
+      setState(() {}); // This will trigger a rebuild and potentially update UI state
+      
+      return; 
+    }
+    
+    // Second click: actually continue to next page
+    print('🎯 ExerciseIntroWidget: Second continue click - navigating to next page');
     if (widget.onContinue != null) {
-      widget.onContinue!();
+      widget.onContinue!();  // this calls LessonPage._goToNextPage()
     } else {
-      // Fallback for cases where callback is not provided
+      // Fallback behavior if no callback (not expected in our case)
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Exercise completed!'),
+          content: Text('Proceeding to next page...'),
           backgroundColor: Color(0xFF4D382D),
         ),
       );
@@ -959,6 +1001,12 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     
     final isEnabled = _areRequirementsMet();
     
+    // Different button text based on progress state
+    String buttonText = 'Continue';
+    if (isEnabled && _progressTriggered) {
+      buttonText = 'Continue »';
+    }
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: SizedBox(
@@ -974,7 +1022,7 @@ class ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
             ),
           ),
           child: Text(
-            'Continue',
+            buttonText,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,

@@ -1,6 +1,8 @@
 from dotenv import load_dotenv
 from livekit import agents, rtc
 from livekit.agents import AgentSession, stt as livekitstt, llm as livekitllm, tts as livekittts
+from livekit.agents import UserInputTranscribedEvent
+from livekit.agents import SpeechCreatedEvent
 from livekit.plugins import openai, tavus, elevenlabs, silero, anthropic
 from livekit import api
 import os
@@ -450,6 +452,54 @@ async def entrypoint(ctx: agents.JobContext):
         session._room_input_options = agents.RoomInputOptions(close_on_disconnect=False)
         await session.start(room=ctx.room, agent=agent)
 
+        # --- Temp instruction state (one-turn override) ---
+        agent._orig_instructions = agent._current_instructions  # Use the internal variable
+        agent._temp_prompt_active = False
+        agent._temp_prompt_purpose = None
+        agent._temp_prompt_text = None
+
+        # --- For voice-initiated turns (not user_message), use speech_created to know when to restore ---
+        @session.on("speech_created")
+        def _on_speech_created(ev: SpeechCreatedEvent):
+            # We already emit started/ended around generate_reply() for text messages we initiate.
+            # For VOICE turns (auto replies), user_initiated == False -> we emit here.
+            if getattr(ev, "user_initiated", False):
+                return
+            async def _emit_started():
+                try:
+                    started = json.dumps({"type": "avatar_speech_started"})
+                    await ctx.room.local_participant.publish_data(
+                        started.encode("utf-8"), reliable=True, topic="avatar"
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not emit avatar_speech_started (voice): {e}")
+            asyncio.create_task(_emit_started())
+
+            # When speech finishes, emit ended and, if a temp prompt was active, restore defaults.
+            def _on_done(_):
+                async def _finish_and_restore():
+                    try:
+                        ended = json.dumps({"type": "avatar_speech_ended"})
+                        await ctx.room.local_participant.publish_data(
+                            ended.encode("utf-8"), reliable=True, topic="avatar"
+                        )
+                    finally:
+                        if getattr(agent, "_temp_prompt_active", False):
+                            await agent.update_instructions(agent._orig_instructions)  # <-- revert remotely
+                            agent._current_instructions = agent._orig_instructions     # <-- sync local property
+                            agent._temp_prompt_active = False
+                            purpose = agent._temp_prompt_purpose
+                            agent._temp_prompt_purpose = None
+                            agent._temp_prompt_text = None
+                            logger.info(f"System prompt reset to default after one voice turn (was '{purpose}')")
+                asyncio.create_task(_finish_and_restore())
+
+            # Attach completion callback to the speech handle
+            try:
+                ev.speech_handle.add_done_callback(_on_done)
+            except Exception as e:
+                logger.warning(f"Could not attach done callback to speech handle: {e}")
+
         # --- Listen for data messages ---
         def on_data_received(data_packet: rtc.DataPacket):
             async def handle_data():
@@ -496,6 +546,16 @@ async def entrypoint(ctx: agents.JobContext):
                                 speech_ended_msg.encode('utf-8'), reliable=True, topic="avatar"
                             )
                             logger.debug("✅ avatar_speech_ended event emitted successfully")
+
+                            # If a temporary system prompt was in effect for a text turn, clear it now
+                            if getattr(agent, "_temp_prompt_active", False):
+                                await agent.update_instructions(agent._orig_instructions)  # <-- revert remotely
+                                agent._current_instructions = agent._orig_instructions     # <-- sync local property
+                                agent._temp_prompt_active = False
+                                purpose = agent._temp_prompt_purpose
+                                agent._temp_prompt_purpose = None
+                                agent._temp_prompt_text = None
+                                logger.info(f"System prompt reset to default after one text turn (was '{purpose}')")
                             
                         except Exception as e:
                             logger.error(f"❌ Error processing prompt: {e}", exc_info=True)
@@ -513,6 +573,42 @@ async def entrypoint(ctx: agents.JobContext):
                                 logger.debug("✅ Emergency avatar_speech_ended event sent")
                             except Exception as cleanup_error:
                                 logger.error(f"❌ Failed to send emergency speech_ended event: {cleanup_error}")
+                    elif data_obj.get('type') == 'system_prompt':
+                        purpose = (data_obj.get('purpose') or "").strip().lower()
+                        prompt = (data_obj.get('content') or "").strip()
+                        logger.debug(f"📋 Received system_prompt with purpose='{purpose}' and content length={len(prompt)} chars")
+                        if purpose in ["pronunciation", "debug_override"] and prompt:
+                            # prevent overlapping temp prompts
+                            if getattr(agent, "_temp_prompt_active", False):
+                                logger.warning("Temp system prompt already active; ignoring new one until current completes.")
+                                return
+                            
+                            try:
+                                # store original and apply a one-turn override
+                                agent._orig_instructions = agent.instructions
+                                await agent.update_instructions(prompt)      # <-- propagate to running session
+                                agent._current_instructions = prompt         # <-- keep your override property in sync
+                                agent._temp_prompt_active = True
+                                agent._temp_prompt_purpose = purpose
+                                agent._temp_prompt_text = prompt
+                                logger.info(f"Applied temporary '{purpose}' system prompt for next turn")
+                                
+                                # only ACK after the update was sent
+                                try:
+                                    ack = json.dumps({"type": "system_prompt_ack", "purpose": purpose})
+                                    await ctx.room.local_participant.publish_data(
+                                        ack.encode("utf-8"), reliable=True, topic="avatar"
+                                    )
+                                except Exception as e:
+                                    logger.debug(f"Failed sending system_prompt_ack: {e}")
+                                return
+                                
+                            except Exception as e:
+                                logger.error(f"Failed to apply system prompt: {e}", exc_info=True)
+                                return
+                        else:
+                            logger.debug(f"Ignoring system_prompt with purpose='{purpose}' or empty content.")
+                            return
                     else:
                         logger.debug(f"📋 Received non-user-message data: type={data_obj.get('type', 'unknown')}")
                         

@@ -32,7 +32,18 @@ class DebugAvatarAgent(Agent):
         super().__init__(instructions=instructions)
         self.system_type = system_type
         self.avatar_language = avatar_language
+        self._current_instructions = instructions  # Store modifiable instructions
         logger.info(f"DebugAvatarAgent initialized with system type: {system_type}, language: {avatar_language}")
+    
+    @property
+    def instructions(self) -> str:
+        """Return current instructions (override parent property)"""
+        return self._current_instructions
+    
+    @instructions.setter
+    def instructions(self, value: str) -> None:
+        """Allow setting instructions dynamically (override parent property)"""
+        self._current_instructions = value
     
     def get_greeting_message(self) -> str:
         """Return appropriate greeting message based on system type and language"""

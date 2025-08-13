@@ -6,7 +6,9 @@ import '../../data/models/page_model.dart';
 import '../widgets/crud_menu.dart';
 import '../widgets/exercise_widget_factory.dart';
 import '../widgets/exercise_intro_widget.dart';
+import '../widgets/lesson_progress_bar.dart';
 import '../../widgets/adaptive_app_bar.dart';
+import '../../providers/lesson_progress_provider.dart';
 
 /// Main lesson page displaying a series of pages with navigation controls
 /// Features:
@@ -82,6 +84,11 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
       }
       
       print('Loaded lesson: ${_currentLesson!.title} with ${_currentLesson!.pageCount} pages');
+      
+      // Initialize progress provider for this lesson
+      final progressProvider = Provider.of<LessonProgressProvider>(context, listen: false);
+      progressProvider.setTotalPages(_currentLesson!.pageCount);
+      
     } catch (error) {
       print('Error loading lesson: $error');
       if (mounted) {
@@ -310,6 +317,9 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
           children: [
             Column(
               children: [
+                // **Progress bar below AppBar** (show if lesson is loaded)
+                if (_currentLesson != null) const LessonProgressBar(),
+                
                 // Page view with real-time streaming from Firebase
                 Expanded(
                   child: Consumer<LessonsProvider>(
@@ -343,6 +353,14 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
                         
                         // Update current page count
                         _currentPageCount = pages.length;
+                        
+                        // Update progress provider if page count changed
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          final progressProvider = Provider.of<LessonProgressProvider>(context, listen: false);
+                          if (progressProvider.totalPages != pages.length) {
+                            progressProvider.setTotalPages(pages.length);
+                          }
+                        });
                         
                         // Ensure current page index is within bounds
                         if (_currentPageIndex >= pages.length) {

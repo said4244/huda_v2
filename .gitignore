@@ -38,3 +38,12 @@ test/
 .env
 server/.env
 **/.env
+
+# Documentation files (except README)
+*.md
+!README.md
+!**/README.md
+
+# Test and development files
+server/test_enhanced_logging.py
+**/test_enhanced_logging.py
