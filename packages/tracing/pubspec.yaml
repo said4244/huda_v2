@@ -1,0 +1,203 @@
+name: tracing_game
+description: "tracing game"
+version: 0.0.4+1  
+homepage: https://github.com/ZeyadShawki/flutter_tracing
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+  plugin_platform_interface: ^2.0.2
+  flutter_bloc: ^9.0.0
+  equatable: ^2.0.7
+  svg_path_parser: ^1.1.2
+  bloc: ^9.0.0
+
+dev_dependencies:
+  ffi: ^2.1.0
+  ffigen: ^11.0.0
+  
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  # This section identifies this Flutter project as a plugin project.
+  # The 'pluginClass' specifies the class (in Java, Kotlin, Swift, Objective-C, etc.)
+  # which should be registered in the plugin registry. This is required for
+  # using method channels.
+  # The Android 'package' specifies package in which the registered class is.
+  # This is required for using method channels on Android.
+  # The 'ffiPlugin' specifies that native code should be built and bundled.
+  # This is required for using `dart:ffi`.
+  # All these are used by the tooling to maintain consistency when
+  # adding or updating assets for this project.
+  #
+  # Please refer to README.md for a detailed explanation.
+
+
+  # To add assets to your plugin package, add an assets section, like this:
+  assets:
+  
+    - packages/tracing_game/assets/images/position_2_finger.png
+# // lower english
+
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/d_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/f_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/b_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/j_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/l_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/h_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/u_lower_PointsInfo.json
+
+
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/A_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/b_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/C_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/e_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/f_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/g_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/h_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/i_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/j_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/K_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/l_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/M_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/n_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/N_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/p_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/q_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/R_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/S_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/t_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/u_lower_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/v_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/x_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/y_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_phontics/z_PointsInfo.json
+# // arabic 
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/alef_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/3en_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/3en_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ba2_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ba2_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/dad_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/dad_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/dal_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/fa2_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/fa2_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/gem_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/gem_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ghen_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ghen_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ha2_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ha2_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/heh_1_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/heh_2_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/heh_3_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/heh_4_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/kaf_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/kaf_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/khah_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/khah_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/lam_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/lam_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/mem_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/mem_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/non_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/non_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/qaf_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/qaf_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ra2_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/sad_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/sad_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/sen_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/sen_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/shen_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/shen_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ta2_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ta2_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/tah_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/tha2_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/theh_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/theh_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/waw_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ya2_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/ya2_small_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/zal_big_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/arabic_phontics/zen_big_PointsInfo.json
+# /// upper english
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/A_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/B_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/D_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/E_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/F_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/G_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/H_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/i_lowercase_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/I_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/J_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/L_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/M_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/O_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/p_lowercase_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/P_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/Q_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/R_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/T_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/U_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/english_upper_phonetics/W_PointsInfo.json
+# /////math
+    - packages/tracing_game/assets/phontics_assets_points/math_shapes/circle_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/math_shapes/rectangle_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/math_shapes/triangle1_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/math_shapes/triangle2_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/math_shapes/triangle3_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/math_shapes/triangle4_PointsInfo.json
+# /// numbers
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/0_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/1_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/2_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/3_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/4_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/5_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/6_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/7_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/8_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/9_PointsInfo.json
+    - packages/tracing_game/assets/phontics_assets_points/numbers_phontics/10_PointsInfo.json
+
+    #     - packages/tracing_game/assets/phontics_assets_points/math_shapes/
+
+  #
+  # For details regarding assets in packages, see
+  # https://flutter.dev/to/asset-from-package
+  #
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # To add custom fonts to your plugin package, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts in packages, see
+  # https://flutter.dev/to/font-from-package
