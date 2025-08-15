@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/models/page_model.dart';
 import 'exercise_intro_widget.dart';
 import 'exercise_trace_widget.dart';
+import 'exercise_keyboard_widget.dart';
 
 /// Factory class for creating appropriate exercise widgets based on exercise type
 class ExerciseWidgetFactory {
@@ -18,6 +19,12 @@ class ExerciseWidgetFactory {
       
       case 'exerciseTrace':
         return ExerciseTraceWidget(
+          page: page,
+          onContinue: onContinue,
+        );
+      
+      case 'exerciseKeyboard':
+        return ExerciseKeyboardWidget(
           page: page,
           onContinue: onContinue,
         );

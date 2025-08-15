@@ -1,0 +1,4 @@
+# This is a placeholder for letter_ba.png
+# In a real implementation, this would be a PNG image of the Arabic letter Ba (ب)
+# For testing purposes, the app will show an error if this file is missing
+# You should replace this with an actual PNG image file
