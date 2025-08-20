@@ -8,6 +8,9 @@ import 'exercise_widgets/base_exercise_page.dart';
 import 'exercise_widgets/arabic_keyboard_widget.dart';
 import 'exercise_widgets/input_validator.dart';
 import 'exercise_widgets/chat_message.dart';
+import 'exercise_widgets/arabic_keyboard.dart';
+import 'exercise_widgets/exercise_audio_button.dart';
+import 'exercise_widgets/exercise_image_section.dart';
 
 /// Widget for displaying Arabic typing exercise with video, headers, and interactive elements
 class ExerciseKeyboardWidget extends BaseExercisePage {
@@ -23,6 +26,7 @@ class ExerciseKeyboardWidget extends BaseExercisePage {
 
 /// Public state class to allow external control via GlobalKey
 class ExerciseKeyboardWidgetState extends BaseExerciseState<ExerciseKeyboardWidget> {
+  bool _typingComplete = false;
   
   @override
   Widget buildExerciseContent(BuildContext context) {
@@ -42,9 +46,35 @@ class ExerciseKeyboardWidgetState extends BaseExerciseState<ExerciseKeyboardWidg
                     transliteration: exerciseData['transliteration'] as String?,
                   ),
                   _buildVideoSection(exerciseData),
-                  ExerciseSubheader(
-                    text: exerciseData['header2'] as String?,
+                  // Header 2 row with optional audio button on the left (RTL-aware positioning handled via row order)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: ExerciseIntroTheme.paddingLarge),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Audio button pinned near the screen edge with standard margin
+                        ExerciseAudioButton(
+                          audioFileName: _extractAudioFileName(exerciseData),
+                          size: 28,
+                        ),
+                        const SizedBox(width: ExerciseIntroTheme.gapLarge),
+                        Expanded(
+                          child: ExerciseSubheader(
+                            text: exerciseData['header2'] as String?,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  // Optional image section (same sizing/positioning style as video)
+                  if ((exerciseData['showImage'] as bool? ?? false) &&
+                      ((exerciseData['imageFileName'] as String?)?.trim().isNotEmpty ?? false))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: ExerciseImageSection(
+                        imageFileName: (exerciseData['imageFileName'] as String).trim(),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -61,6 +91,13 @@ class ExerciseKeyboardWidgetState extends BaseExerciseState<ExerciseKeyboardWidg
         ],
       ),
     );
+  }
+
+  String? _extractAudioFileName(Map<String, dynamic> exerciseData) {
+    final raw = (exerciseData['audioFileName'] ?? exerciseData['audio'] ?? exerciseData['audio_file']) as String?;
+    final name = raw?.trim();
+    if (name == null || name.isEmpty) return null;
+    return name;
   }
 
   Widget _buildVideoSection(Map<String, dynamic> exerciseData) {
@@ -101,6 +138,10 @@ class ExerciseKeyboardWidgetState extends BaseExerciseState<ExerciseKeyboardWidg
       child: ArabicForcedTypingDemo(
         initialTarget: initialTarget,
         asSection: true,
+        onCompletionChanged: (complete) {
+          // Safe to set since fired from user actions or post-frame
+          if (mounted) setState(() => _typingComplete = complete);
+        },
       ),
     );
   }
@@ -114,7 +155,8 @@ class ExerciseKeyboardWidgetState extends BaseExerciseState<ExerciseKeyboardWidg
       return const SizedBox.shrink();
     }
     
-    final isEnabled = areRequirementsMet();
+  // Enable only when typing of target text is complete
+  final isEnabled = _typingComplete;
     
     // Different button text based on progress state
     String buttonText = ExerciseIntroStrings.continueText;
@@ -133,7 +175,13 @@ class ExerciseKeyboardWidgetState extends BaseExerciseState<ExerciseKeyboardWidg
 class ArabicForcedTypingDemo extends StatefulWidget {
   final String initialTarget;
   final bool asSection; // when true, render inline (no Scaffold/AppBar)
-  const ArabicForcedTypingDemo({super.key, required this.initialTarget, this.asSection = false});
+  final ValueChanged<bool>? onCompletionChanged;
+  const ArabicForcedTypingDemo({
+    super.key,
+    required this.initialTarget,
+    this.asSection = false,
+    this.onCompletionChanged,
+  });
 
   @override
   State<ArabicForcedTypingDemo> createState() => _ArabicForcedTypingDemoState();
@@ -142,6 +190,7 @@ class ArabicForcedTypingDemo extends StatefulWidget {
 class _ArabicForcedTypingDemoState extends State<ArabicForcedTypingDemo> {
   final _validator = InputValidator();
   late InputState _state;
+  bool _lastComplete = false;
 
   @override
   void initState() {
@@ -159,6 +208,7 @@ class _ArabicForcedTypingDemoState extends State<ArabicForcedTypingDemo> {
         cursorPosition: 0,
       );
     });
+  _notifyCompletion(false);
   }
 
   void _typeChar(String ch) {
@@ -170,11 +220,23 @@ class _ArabicForcedTypingDemoState extends State<ArabicForcedTypingDemo> {
         position: pos,
       );
     });
+  _notifyCompletion(_state.isComplete);
   }
 
   void _backspace() {
     setState(() {
       _state = _validator.processBackspace(currentState: _state);
+    });
+    _notifyCompletion(_state.isComplete);
+  }
+
+  void _notifyCompletion(bool complete) {
+    if (widget.onCompletionChanged == null) return;
+    if (complete == _lastComplete) return;
+    _lastComplete = complete;
+    // Use post-frame to avoid setState during build issues in parent
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onCompletionChanged!(complete);
     });
   }
 
@@ -186,42 +248,7 @@ class _ArabicForcedTypingDemoState extends State<ArabicForcedTypingDemo> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 12),
-        // Target text with per-character feedback (green = correct, red = incorrect)
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Wrap(
-            textDirection: TextDirection.rtl,
-            children: List.generate(expected.length, (i) {
-              final stateAtI = _state.characterStates.firstWhere(
-                (s) => s.index == i,
-                orElse: () => CharacterState(index: i, character: '', status: CharacterStatus.pending),
-              );
-              Color border;
-              if (stateAtI.status == CharacterStatus.correct) {
-                border = Colors.green;
-              } else if (stateAtI.status == CharacterStatus.incorrect) {
-                border = Colors.red;
-              } else {
-                border = Colors.grey;
-              }
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                decoration: BoxDecoration(
-                  border: Border.all(color: border),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  expected[i],
-                  textDirection: TextDirection.rtl,
-                  style: const TextStyle(fontSize: 20),
-                ),
-              );
-            }),
-          ),
-        ),
-
-        // Current input string (assembled)
+        // Single input box that shows the target as gray placeholders; per-character coloring
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Container(
@@ -231,10 +258,49 @@ class _ArabicForcedTypingDemoState extends State<ArabicForcedTypingDemo> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.grey.shade300),
             ),
-            child: Text(
-              _state.currentInput,
+            child: Directionality(
               textDirection: TextDirection.rtl,
-              style: const TextStyle(fontSize: 22),
+              child: RichText(
+                text: TextSpan(
+                  children: List.generate(expected.length, (i) {
+                    final expectedChar = expected[i];
+                    // find state for this index
+                    final stateAtI = _state.characterStates.firstWhere(
+                      (s) => s.index == i,
+                      orElse: () => CharacterState(index: i, character: '', status: CharacterStatus.pending),
+                    );
+
+                    // default: gray placeholder
+                    Color color = Colors.grey.shade500;
+                    FontWeight weight = FontWeight.normal;
+
+                    if (stateAtI.status == CharacterStatus.correct) {
+                      // Correct => turn black
+                      color = Colors.black;
+                    } else if (stateAtI.status == CharacterStatus.incorrect) {
+                      // If expected is a haraka and typed char is NOT a haraka => likely forgotten haraka
+                      if (ArabicKeyboard.isHaraka(expectedChar) &&
+                          !ArabicKeyboard.harakat.contains(stateAtI.character)) {
+                        color = Colors.orange.shade700;
+                      } else {
+                        color = Colors.red.shade700;
+                      }
+                      weight = FontWeight.w600;
+                    } else {
+                      // Pending: if next expected is a haraka, hint with orange
+                      if (ArabicKeyboard.isHaraka(expectedChar)) {
+                        color = Colors.orange.shade600;
+                      }
+                    }
+
+                    // Show expected char but color according to correctness
+                    return TextSpan(
+                      text: expectedChar,
+                      style: TextStyle(fontSize: 22, color: color, fontWeight: weight),
+                    );
+                  }),
+                ),
+              ),
             ),
           ),
         ),
