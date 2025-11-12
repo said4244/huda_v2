@@ -338,7 +338,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   late TextEditingController _microphonePromptController;
   
   // Form state
-  String _exerciseType = 'legacy';
+  String _exerciseType = 'exerciseIntro'; // Default to exerciseIntro instead of legacy
   String _videoTrigger = 'onStart';
   bool _allowUserVideoControl = false;
   bool _autoPlay = false;
@@ -366,7 +366,8 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   void _loadExistingData() {
     final exerciseData = widget.page.exerciseData ?? {};
     
-    _exerciseType = widget.page.exerciseType ?? 'legacy';
+    // Default to 'exerciseIntro' instead of 'legacy' for better UX
+    _exerciseType = widget.page.exerciseType ?? 'exerciseIntro';
     _header1Controller.text = exerciseData['header1'] as String? ?? '';
     _header2Controller.text = exerciseData['header2'] as String? ?? '';
     _transliterationController.text = exerciseData['transliteration'] as String? ?? '';
@@ -398,6 +399,24 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) {
       return;
+    }
+
+    // Validate that at least one essential field is filled for exerciseIntro
+    if (_exerciseType == 'exerciseIntro') {
+      final hasHeader1 = _header1Controller.text.trim().isNotEmpty;
+      final hasVideoName = _videoNameController.text.trim().isNotEmpty;
+      final hasMicPrompt = _microphonePromptController.text.trim().isNotEmpty;
+      
+      if (!hasHeader1 && !hasVideoName && !hasMicPrompt) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please fill at least one of: Header 1, Video Name, or Microphone Prompt'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
     }
 
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);

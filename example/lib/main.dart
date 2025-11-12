@@ -70,6 +70,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => VideoCallVisibilityProvider()),
         ChangeNotifierProvider(create: (_) => IntroPageVisibilityProvider()),
+        ChangeNotifierProvider(create: (_) => AvatarProvider()),
         ChangeNotifierProvider(create: (_) => SectionsProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
@@ -131,7 +132,6 @@ class IntroPageVisibilityProvider extends ChangeNotifier {
 }
 
 // Provider for sharing avatar instance between pages
-// DEPRECATED: Avatar lifecycle now fully managed in video_call_page.dart
 class AvatarProvider extends ChangeNotifier {
   TavusAvatar? _avatar;
   

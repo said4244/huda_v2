@@ -5,6 +5,7 @@ import '../../data/models/lesson_model.dart';
 import '../../data/models/page_model.dart';
 import '../widgets/crud_menu.dart';
 import '../widgets/exercise_widget_factory.dart';
+import '../../widgets/adaptive_app_bar.dart';
 
 /// Main lesson page displaying a series of pages with navigation controls
 /// Features:
@@ -146,10 +147,6 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     _navigateToPage(_currentPageIndex - 1);
   }
 
-  void _exitLesson() {
-    Navigator.of(context).pop();
-  }
-
   void _showCrudMenu() {
     if (_currentLesson == null) return;
     
@@ -213,96 +210,18 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildNavigationControls() {
-    return Positioned(
-      top: 50,
-      left: 20,
-      right: 20,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Back button
-          IconButton(
-            onPressed: _goToPreviousPage,
-            icon: const Icon(
-              Icons.arrow_back_ios,
-              color: Colors.white,
-              size: 30,
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.black54,
-              shape: const CircleBorder(),
-              padding: const EdgeInsets.all(12),
-            ),
-          ),
-          
-          // X button (exit)
-          IconButton(
-            onPressed: _exitLesson,
-            icon: const Icon(
-              Icons.close,
-              color: Colors.white,
-              size: 30,
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.black54,
-              shape: const CircleBorder(),
-              padding: const EdgeInsets.all(12),
-            ),
-          ),
-          
-          // Next button
-          IconButton(
-            onPressed: _goToNextPage,
-            icon: const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white,
-              size: 30,
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.black54,
-              shape: const CircleBorder(),
-              padding: const EdgeInsets.all(12),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPageIndicator() {
-    if (_currentPageCount <= 1) {
-      return const SizedBox.shrink();
-    }
-
-    return Positioned(
-      bottom: 50,
-      left: 0,
-      right: 0,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(_currentPageCount, (index) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: index == _currentPageIndex
-                  ? Colors.white
-                  : Colors.white54,
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
+      return Scaffold(
+        appBar: AdaptiveAppBar(
+          title: 'Loading...',
+          showBackButton: true,
+          onMenuPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+        body: const Center(
           child: CircularProgressIndicator(),
         ),
       );
@@ -310,8 +229,12 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
 
     if (_currentLesson == null) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Lesson Error'),
+        appBar: AdaptiveAppBar(
+          title: 'Lesson Error',
+          showBackButton: true,
+          onMenuPressed: () {
+            Navigator.of(context).pop();
+          },
         ),
         body: const Center(
           child: Column(
@@ -334,82 +257,161 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     }
 
     return Scaffold(
+      appBar: AdaptiveAppBar(
+        title: _currentLesson?.title ?? 'Lesson',
+        showBackButton: true,
+        onMenuPressed: () {
+          Navigator.of(context).pop();
+        },
+      ),
       body: Stack(
-        children: [
-          // Page view with real-time streaming from Firebase
-          Consumer<LessonsProvider>(
-            builder: (context, lessonsProvider, child) {
-              return StreamBuilder<List<PageModel>>(
-                stream: lessonsProvider.getPagesStream(widget.unitId, widget.levelId),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline, size: 64, color: Colors.red),
-                          SizedBox(height: 16),
-                          Text('Error loading pages: ${snapshot.error}'),
-                        ],
+          children: [
+            Column(
+              children: [
+                // Page view with real-time streaming from Firebase
+                Expanded(
+                  child: Consumer<LessonsProvider>(
+                    builder: (context, lessonsProvider, child) {
+                      return StreamBuilder<List<PageModel>>(
+                        stream: lessonsProvider.getPagesStream(widget.unitId, widget.levelId),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.error_outline, size: 64, color: Colors.red),
+                                  SizedBox(height: 16),
+                                  Text('Error loading pages: ${snapshot.error}'),
+                                ],
+                              ),
+                            );
+                          }
+                          
+                          final pages = snapshot.data ?? [];
+                        if (pages.isEmpty) {
+                          return const Center(
+                            child: Text('No pages found'),
+                          );
+                        }
+                        
+                        // Update current page count
+                        _currentPageCount = pages.length;
+                        
+                        // Ensure current page index is within bounds
+                        if (_currentPageIndex >= pages.length) {
+                          _currentPageIndex = pages.length - 1;
+                        }
+                        
+                        return PageView.builder(
+                          controller: _pageController,
+                          onPageChanged: (index) {
+                            setState(() {
+                              _currentPageIndex = index;
+                            });
+                          },
+                          itemCount: pages.length,
+                          itemBuilder: (context, index) {
+                            return _buildPage(pages[index]);
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              
+              // Bottom navigation bar with page indicator and navigation buttons
+              Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4D382D),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8.0,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Previous button
+                      IconButton(
+                        onPressed: _currentPageIndex > 0 ? _goToPreviousPage : null,
+                        icon: const Icon(
+                          Icons.arrow_back_ios,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: _currentPageIndex > 0 ? Colors.white24 : Colors.grey,
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(12),
+                        ),
                       ),
-                    );
-                  }
-                  
-                  final pages = snapshot.data ?? [];
-                  if (pages.isEmpty) {
-                    return const Center(
-                      child: Text('No pages found'),
-                    );
-                  }
-                  
-                  // Update current page count
-                  _currentPageCount = pages.length;
-                  
-                  // Ensure current page index is within bounds
-                  if (_currentPageIndex >= pages.length) {
-                    _currentPageIndex = pages.length - 1;
-                  }
-                  
-                  return PageView.builder(
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _currentPageIndex = index;
-                      });
-                    },
-                    itemCount: pages.length,
-                    itemBuilder: (context, index) {
-                      return _buildPage(pages[index]);
-                    },
-                  );
-                },
-              );
-            },
+                      
+                      // Page indicator
+                      if (_currentPageCount > 1)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(_currentPageCount, (index) {
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: index == _currentPageIndex
+                                    ? const Color(0xFFF2F5F3)
+                                    : Colors.white38,
+                              ),
+                            );
+                          }),
+                        ),
+                      
+                      // Next button
+                      IconButton(
+                        onPressed: _currentPageIndex < _currentPageCount - 1 ? _goToNextPage : null,
+                        icon: const Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: _currentPageIndex < _currentPageCount - 1 ? Colors.white24 : Colors.grey,
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           
-          // Navigation controls
-          _buildNavigationControls(),
-          
-          // Page indicator
-          _buildPageIndicator(),
+          // Admin CRUD button
+          if (widget.adminMode)
+            Positioned(
+              bottom: 80, // Position above the bottom navigation
+              left: 16,
+              child: FloatingActionButton.extended(
+                onPressed: _showCrudMenu,
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+                label: const Text('CRUD'),
+                icon: const Icon(Icons.edit),
+              ),
+            ),
         ],
       ),
-      
-      // Admin CRUD button
-      floatingActionButton: widget.adminMode
-          ? FloatingActionButton.extended(
-              onPressed: _showCrudMenu,
-              backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
-              label: const Text('CRUD'),
-              icon: const Icon(Icons.edit),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
     );
   }
 }
