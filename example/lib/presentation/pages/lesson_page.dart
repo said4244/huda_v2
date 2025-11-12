@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:math';
 import '../../data/providers/lessons_provider.dart';
 import '../../data/models/lesson_model.dart';
 import '../../data/models/page_model.dart';
 import '../widgets/crud_menu.dart';
+import '../widgets/exercise_widget_factory.dart';
 
 /// Main lesson page displaying a series of pages with navigation controls
 /// Features:
@@ -204,37 +204,8 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     setState(() {});
   }
 
-  String _generateRandomLetter() {
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    final random = Random();
-    return letters[random.nextInt(letters.length)];
-  }
-
   Widget _buildPage(PageModel page) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      color: page.backgroundColor,
-      child: Center(
-        child: page.randomPlaceholder
-            ? Text(
-                _generateRandomLetter(),
-                style: const TextStyle(
-                  fontSize: 120,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(
-                      offset: Offset(2, 2),
-                      blurRadius: 4,
-                      color: Colors.black26,
-                    ),
-                  ],
-                ),
-              )
-            : Container(), // Empty container if no placeholder
-      ),
-    );
+    return ExerciseWidgetFactory.build(page);
   }
 
   Widget _buildNavigationControls() {

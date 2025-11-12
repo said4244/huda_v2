@@ -25,36 +25,23 @@ class PageModel {
   factory PageModel.blank({
     String? id,
     Color? backgroundColor,
-    bool randomPlaceholder = true,
+    bool randomPlaceholder = false,
   }) {
     return PageModel(
       id: id ?? 'page_${DateTime.now().millisecondsSinceEpoch}',
-      backgroundColor: backgroundColor ?? const Color(0xFF58CC02), // Default green
+      backgroundColor: backgroundColor ?? const Color(0xFFF2EFEB), // Fixed background color
       randomPlaceholder: randomPlaceholder,
     );
   }
 
-  /// Creates a page with random background color
+  /// Creates a page with fixed background color (no more random colors)
   factory PageModel.withRandomColor({
     String? id,
-    bool randomPlaceholder = true,
+    bool randomPlaceholder = false,
   }) {
-    final colors = [
-      const Color(0xFF58CC02), // Green
-      const Color(0xFF1CB0F6), // Blue  
-      const Color(0xFF9C27B0), // Purple
-      const Color(0xFFFF9800), // Orange
-      const Color(0xFFF44336), // Red
-      const Color(0xFF4CAF50), // Light green
-      const Color(0xFF2196F3), // Light blue
-      const Color(0xFFE91E63), // Pink
-    ];
-    
-    final randomColor = colors[(DateTime.now().millisecond) % colors.length];
-    
     return PageModel(
       id: id ?? 'page_${DateTime.now().millisecondsSinceEpoch}',
-      backgroundColor: randomColor,
+      backgroundColor: const Color(0xFFF2EFEB), // Fixed background color
       randomPlaceholder: randomPlaceholder,
     );
   }
@@ -84,7 +71,7 @@ class PageModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'backgroundColor': backgroundColor.value,
+      'backgroundColor': backgroundColor.value.toInt(),
       'randomPlaceholder': randomPlaceholder,
       'exerciseType': exerciseType,
       'exerciseData': exerciseData,
