@@ -9,13 +9,19 @@ class PageTransitionController extends GetxController with GetSingleTickerProvid
   
   // Page states
   final RxBool _showUnitsPage = false.obs;
+  final RxBool _showLessonPage = false.obs;
   final RxString _currentSectionId = ''.obs;
   final RxString _currentSectionTitle = ''.obs;
+  final RxString _currentUnitId = ''.obs;
+  final RxString _currentLevelId = ''.obs;
   
   // Getters
   bool get showUnitsPage => _showUnitsPage.value;
+  bool get showLessonPage => _showLessonPage.value;
   String get currentSectionId => _currentSectionId.value;
   String get currentSectionTitle => _currentSectionTitle.value;
+  String get currentUnitId => _currentUnitId.value;
+  String get currentLevelId => _currentLevelId.value;
   
   @override
   void onInit() {
@@ -65,12 +71,44 @@ class PageTransitionController extends GetxController with GetSingleTickerProvid
     animationController.reverse().then((_) {
       // Hide units page after animation completes
       _showUnitsPage.value = false;
+      _showLessonPage.value = false;
       _currentSectionId.value = '';
       _currentSectionTitle.value = '';
+      _currentUnitId.value = '';
+      _currentLevelId.value = '';
       
       // Trigger GetBuilder update
       update();
     });
+  }
+
+  /// Navigate to lesson page
+  void navigateToLesson({
+    required String unitId,
+    required String levelId,
+  }) {
+    print("navigateToLesson called with unitId: $unitId, levelId: $levelId");
+    
+    _currentUnitId.value = unitId;
+    _currentLevelId.value = levelId;
+    _showLessonPage.value = true;
+    
+    print("showLessonPage is now: ${_showLessonPage.value}");
+    
+    // Trigger GetBuilder update
+    update();
+    
+    print("Lesson navigation completed");
+  }
+
+  /// Navigate back to units page from lesson
+  void navigateBackToUnits() {
+    _showLessonPage.value = false;
+    _currentUnitId.value = '';
+    _currentLevelId.value = '';
+    
+    // Trigger GetBuilder update
+    update();
   }
   
   @override

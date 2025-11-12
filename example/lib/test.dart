@@ -99,14 +99,7 @@ class TestSectionsApp extends StatelessWidget {
               unitId: args?['unitId'],
             );
           },
-          '/lesson': (context) {
-            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-            return LessonPage(
-              unitId: args?['unitId'] ?? '',
-              levelId: args?['levelId'] ?? '',
-              adminMode: testAdminLogin,
-            );
-          },
+          // Remove lesson route as it will be handled within TestAppStack
         },
       ),
     );
@@ -123,7 +116,7 @@ class TestAppStack extends StatelessWidget {
     return Scaffold(
       body: GetBuilder<PageTransitionController>(
         builder: (transitionController) {
-          print("Test GetBuilder rebuilding - showUnitsPage: ${transitionController.showUnitsPage}");
+          print("Test GetBuilder rebuilding - showUnitsPage: ${transitionController.showUnitsPage}, showLessonPage: ${transitionController.showLessonPage}");
           
           return Stack(
             children: [
@@ -137,6 +130,14 @@ class TestAppStack extends StatelessWidget {
                   child: UnitsPage(
                     sectionId: transitionController.currentSectionId,
                   ),
+                ),
+              
+              // Lesson page - shown on top of units when active
+              if (transitionController.showLessonPage)
+                LessonPage(
+                  unitId: transitionController.currentUnitId,
+                  levelId: transitionController.currentLevelId,
+                  adminMode: testAdminLogin,
                 ),
               
               // Note: No video call page in test environment
@@ -190,6 +191,9 @@ class UnitsPageTest extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Initialize GetX controller for test
+    Get.put(PageTransitionController());
+    
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SectionsProvider()),
@@ -198,22 +202,42 @@ class UnitsPageTest extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
         ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsService, _globalTestLessonsBox)),
       ],
-      child: MaterialApp(
+      child: GetMaterialApp(
         title: 'Units Test',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const UnitsPage(
-          sectionId: 'section_1', // Test with section 1
-        ),
-        routes: {
-          '/lesson': (context) {
-            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-            return LessonPage(
-              unitId: args?['unitId'] ?? '',
-              levelId: args?['levelId'] ?? '',
-              adminMode: testAdminLogin,
-            );
-          },
+        home: const UnitsTestStack(),
+        // Remove lesson route as UnitsPage will use PageTransitionController navigation
+      ),
+    );
+  }
+}
+
+/// Simple test stack for UnitsPageTest
+class UnitsTestStack extends StatelessWidget {
+  const UnitsTestStack({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: GetBuilder<PageTransitionController>(
+        builder: (transitionController) {
+          return Stack(
+            children: [
+              // Units page as base
+              const UnitsPage(
+                sectionId: 'section_1', // Test with section 1
+              ),
+              
+              // Lesson page - shown on top when active
+              if (transitionController.showLessonPage)
+                LessonPage(
+                  unitId: transitionController.currentUnitId,
+                  levelId: transitionController.currentLevelId,
+                  adminMode: testAdminLogin,
+                ),
+            ],
+          );
         },
       ),
     );

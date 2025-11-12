@@ -288,15 +288,12 @@ class _UnitsPageState extends State<UnitsPage> with TickerProviderStateMixin {
       // Get or create lesson for this unit/level (ensures lesson exists)
       lessonsProvider.getLesson(unit.id, level.id, adminLogin: adminLogin);
       
-      // Navigate to lesson page
+      // Navigate to lesson page using PageTransitionController
       if (mounted) {
-        Navigator.of(context).pushNamed(
-          '/lesson',
-          arguments: {
-            'unitId': unit.id,
-            'levelId': level.id,
-            'sectionId': widget.sectionId,
-          },
+        final transitionController = Get.find<PageTransitionController>();
+        transitionController.navigateToLesson(
+          unitId: unit.id,
+          levelId: level.id,
         );
       }
     } catch (error) {

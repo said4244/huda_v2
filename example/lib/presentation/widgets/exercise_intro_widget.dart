@@ -7,10 +7,12 @@ import 'package:avatar_sts2/avatar_sts2.dart';
 /// Widget for displaying exercise introduction with video, headers, and interactive elements
 class ExerciseIntroWidget extends StatefulWidget {
   final PageModel page;
+  final VoidCallback? onContinue;
 
   const ExerciseIntroWidget({
     super.key,
     required this.page,
+    this.onContinue,
   });
 
   @override
@@ -33,6 +35,30 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     super.initState();
     _initializeVideo();
     _processInitialTriggers();
+  }
+
+  @override
+  void didUpdateWidget(covariant ExerciseIntroWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if exercise data has changed
+    if (oldWidget.page.exerciseData != widget.page.exerciseData) {
+      // Dispose old video controller
+      _videoController?.dispose();
+      _videoController = null;
+      
+      // Reset state
+      _isVideoReady = false;
+      _videoWatched = false;
+      _microphoneUsed = false;
+      _isProcessingMessages = false;
+      
+      // Reinitialize with new data
+      _initializeVideo();
+      _processInitialTriggers();
+      
+      setState(() {});
+    }
   }
 
   @override
@@ -168,94 +194,45 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
   }
 
   void _onContinuePressed() {
-    // Mark exercise complete and navigate to next page
-    // This should be handled by parent widget/provider
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Exercise completed!'),
-        backgroundColor: Color(0xFF4D382D),
-      ),
-    );
-    
-    // TODO: Update progress and navigate to next page
-    // This would typically be handled by a provider or callback to parent
+    // Mark exercise complete and call callback
+    if (widget.onContinue != null) {
+      widget.onContinue!();
+    } else {
+      // Fallback for cases where callback is not provided
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Exercise completed!'),
+          backgroundColor: Color(0xFF4D382D),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final exerciseData = widget.page.exerciseData ?? {};
     
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2EFEB),
-      appBar: _buildAppBar(exerciseData),
-      body: Column(
-        children: [
-          _buildProgressBar(),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                    child: Column(
-                      children: [
-                        _buildHeaderRow(exerciseData),
-                        _buildVideoSection(exerciseData),
-                        _buildHeader2(exerciseData),
-                        const Spacer(),
-                        _buildMicrophoneSection(exerciseData),
-                        _buildContinueButton(exerciseData),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(Map<String, dynamic> exerciseData) {
-    final showRightArrow = exerciseData['showRightArrow'] as bool? ?? false;
-    
-    return AppBar(
-      backgroundColor: const Color(0xFFF2EFEB),
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(
-          Icons.arrow_back_ios,
-          color: Color(0xFF4D382D),
-        ),
-        onPressed: () => Navigator.of(context).pop(),
-      ),
-      actions: showRightArrow
-          ? [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_forward_ios,
-                  color: Color(0xFF4D382D),
-                ),
-                onPressed: _onContinuePressed,
-              ),
-            ]
-          : null,
-    );
-  }
-
-  Widget _buildProgressBar() {
-    // TODO: Get actual progress from provider
-    const double progress = 0.3; // Placeholder
-    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: LinearProgressIndicator(
-        value: progress,
-        backgroundColor: Colors.grey[300],
-        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4D382D)),
-        minHeight: 4,
+      color: const Color(0xFFF2EFEB),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                children: [
+                  _buildHeaderRow(exerciseData),
+                  _buildVideoSection(exerciseData),
+                  _buildHeader2(exerciseData),
+                  const Spacer(),
+                  _buildMicrophoneSection(exerciseData),
+                  _buildContinueButton(exerciseData),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -5,12 +5,15 @@ import 'exercise_intro_widget.dart';
 /// Factory class for creating appropriate exercise widgets based on exercise type
 class ExerciseWidgetFactory {
   /// Creates the appropriate widget for the given page based on its exercise type
-  static Widget build(PageModel page) {
+  static Widget build(PageModel page, {VoidCallback? onContinue}) {
     final exerciseType = page.exerciseType;
     
     switch (exerciseType) {
       case 'exerciseIntro':
-        return ExerciseIntroWidget(page: page);
+        return ExerciseIntroWidget(
+          page: page,
+          onContinue: onContinue,
+        );
       
       default:
         // Return legacy page display for backward compatibility

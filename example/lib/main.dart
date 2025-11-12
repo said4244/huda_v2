@@ -81,20 +81,13 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const AppStack(),
+        // Remove lesson route as it will be handled within AppStack
         routes: {
           '/units': (context) {
             final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
             return UnitsPage(
               sectionId: args?['sectionId'],
               unitId: args?['unitId'],
-            );
-          },
-          '/lesson': (context) {
-            final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-            return LessonPage(
-              unitId: args?['unitId'] ?? '',
-              levelId: args?['levelId'] ?? '',
-              adminMode: adminLogin,
             );
           },
         },
@@ -166,7 +159,7 @@ class AppStack extends StatelessWidget {
         builder: (context, videoCallProvider, introProvider, child) {
           return GetBuilder<PageTransitionController>(
             builder: (transitionController) {
-              print("GetBuilder rebuilding - showUnitsPage: ${transitionController.showUnitsPage}");
+              print("GetBuilder rebuilding - showUnitsPage: ${transitionController.showUnitsPage}, showLessonPage: ${transitionController.showLessonPage}");
               
               return Stack(
                 children: [
@@ -180,6 +173,14 @@ class AppStack extends StatelessWidget {
                       child: UnitsPage(
                         sectionId: transitionController.currentSectionId,
                       ),
+                    ),
+                  
+                  // Lesson page - shown on top of units when active
+                  if (transitionController.showLessonPage)
+                    LessonPage(
+                      unitId: transitionController.currentUnitId,
+                      levelId: transitionController.currentLevelId,
+                      adminMode: adminLogin,
                     ),
                   
                   // Video call page - ALWAYS MOUNTED but visibility controlled
