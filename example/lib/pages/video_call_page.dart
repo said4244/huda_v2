@@ -555,25 +555,29 @@ class _VideoCallPageState extends State<VideoCallPage> with TickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    // Don't show anything until avatar is ready
-    if (!_isFullyVisible || _callEnded) {
-      return const SizedBox.shrink();
+    // Don't show anything and don't absorb gestures if not supposed to be visible
+    if (!widget.isVisible || !_isFullyVisible || _callEnded) {
+      return const IgnorePointer(
+        child: SizedBox.shrink(),
+      );
     }
 
-    return Scaffold(
-      backgroundColor: _isPiP ? Colors.transparent : const Color(0xFFFFF6E9),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Fullscreen video when not in PiP mode
-          if (!_isPiP)
-            _buildFullscreenVideo(),
-          
-          // Custom PiP video when in PiP mode
-          if (_isPiP)
+    // If in PiP mode, only return the PiP widget in a Stack (Positioned needs Stack)
+    if (_isPiP) {
+      return IgnorePointer(
+        ignoring: false, // Allow touches only on the PiP video itself
+        child: Stack(
+          children: [
             _buildPiPVideo(context),
-        ],
-      ),
+          ],
+        ),
+      );
+    }
+
+    // Full screen mode - return the full Scaffold
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFF6E9),
+      body: _buildFullscreenVideo(),
     );
   }
 

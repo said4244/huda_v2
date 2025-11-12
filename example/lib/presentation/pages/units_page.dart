@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:get/get.dart';
 import '../../data/providers/units_provider.dart';
 import '../../data/models/unit_model.dart';
 import '../../data/models/level_model.dart';
@@ -9,6 +10,7 @@ import '../../widgets/adaptive_bottom_nav.dart';
 import '../../providers/navigation_provider.dart';
 import '../../providers/user_stats_provider.dart';
 import '../../utils/responsive_helper.dart';
+import '../../controllers/page_transition_controller.dart';
 
 /// Main Units Page implementing Duolingo-style learning path
 /// Features:
@@ -107,7 +109,10 @@ class _UnitsPageState extends State<UnitsPage> with TickerProviderStateMixin {
             return AdaptiveAppBar(
               title: 'Units',
               showBackButton: true,
-              onMenuPressed: () => Navigator.of(context).pop(),
+              onMenuPressed: () {
+                final transitionController = Get.find<PageTransitionController>();
+                transitionController.navigateBackToSections();
+              },
             );
           },
         ),
@@ -364,30 +369,30 @@ class _UnitsPageState extends State<UnitsPage> with TickerProviderStateMixin {
 
   /// Handle navigation tap
   void _handleNavTap(BuildContext context, int index) {
-    final navProvider = Provider.of<NavigationProvider>(context, listen: false);
+    final transitionController = Get.find<PageTransitionController>();
     
-    if (index == 0) {
-      // Navigate back to sections
-      Navigator.of(context).pop();
-    } else {
-      navProvider.setCurrentIndex(index);
-      // Handle other navigation options
-      String pageName = '';
-      switch (index) {
-        case 1:
-          pageName = 'Stats';
-          break;
-        case 2:
-          pageName = 'Profile';
-          break;
-      }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$pageName page coming soon!'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
+    switch (index) {
+      case 0: // Home button - navigate back to sections
+        transitionController.navigateBackToSections();
+        break;
+      case 1:
+        // Stats page - show coming soon message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Stats page coming soon!'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        break;
+      case 2:
+        // Profile page - show coming soon message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile page coming soon!'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        break;
     }
   }
 }
