@@ -6,9 +6,21 @@ class ArabicKeyboard {
     ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'],
     // Third row
     ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'],
-    // Fourth row - special characters and space
-    ['؟', '،', '.', ' ', '!', '؛', 'ـ', 'َ', 'ُ', 'ِ', 'ً', 'ٌ', 'ٍ'], // Add diacritics
+  // Fourth row - punctuation only (removed harakat and space to fit screens better)
+  ['؟', '،', '.', '!', '؛'],
   ];
+  
+  // Common Arabic diacritics (Harakat)
+  static const Set<String> harakat = {
+    'َ', // Fatha
+    'ً', // Tanween Fatha
+    'ُ', // Damma
+    'ٌ', // Tanween Damma
+    'ِ', // Kasra
+    'ٍ', // Tanween Kasra
+    'ّ', // Shadda
+    'ْ', // Sukun
+  };
   
   // Diacritics/variants mapping
   static const Map<String, List<String>> diacriticsMap = {
@@ -55,6 +67,8 @@ class ArabicKeyboard {
   static const String space = ' ';
   static const String backspace = '⌫';
   static const String enter = '⏎';
+  
+  static bool isHaraka(String ch) => harakat.contains(ch);
   
   static bool hasDiacritics(String key) {
     return diacriticsMap.containsKey(key);

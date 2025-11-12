@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import '../../data/providers/lessons_provider.dart';
 import '../../data/models/lesson_model.dart';
 import '../../data/models/page_model.dart';
@@ -338,6 +339,9 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   late TextEditingController _microphonePromptController;
   late TextEditingController _letterController;
   late TextEditingController _typingTargetController;
+  late TextEditingController _audioFileNameController;
+  late TextEditingController _imageFileNameController;
+  bool _showImage = false;
   
   // Form state
   String _exerciseType = 'exerciseIntro'; // Default to exerciseIntro instead of legacy
@@ -363,6 +367,8 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _microphonePromptController = TextEditingController();
   _letterController = TextEditingController();
   _typingTargetController = TextEditingController();
+  _audioFileNameController = TextEditingController();
+  _imageFileNameController = TextEditingController();
     
     // Load existing data
     _loadExistingData();
@@ -380,6 +386,9 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _microphonePromptController.text = exerciseData['microphonePrompt'] as String? ?? '';
     _letterController.text = exerciseData['letter'] as String? ?? '';
   _typingTargetController.text = exerciseData['typingTarget'] as String? ?? '';
+  _audioFileNameController.text = exerciseData['audioFileName'] as String? ?? '';
+  _showImage = exerciseData['showImage'] as bool? ?? false;
+  _imageFileNameController.text = exerciseData['imageFileName'] as String? ?? '';
     
     _videoTrigger = exerciseData['videoTrigger'] as String? ?? 'onStart';
     _videoAfterMessageId = exerciseData['videoAfterMessageId'] as String?;
@@ -403,6 +412,8 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _microphonePromptController.dispose();
     _letterController.dispose();
   _typingTargetController.dispose();
+  _audioFileNameController.dispose();
+  _imageFileNameController.dispose();
     super.dispose();
   }
 
@@ -445,20 +456,62 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
       }
     }
   
-     // Validate for exerciseKeyboard (typing)
-     if (_exerciseType == 'exerciseKeyboard') {
-       final hasTarget = _typingTargetController.text.trim().isNotEmpty;
-       if (!hasTarget) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(
-             content: Text('Please provide a typing target text'),
-             backgroundColor: Colors.orange,
-             duration: Duration(seconds: 3),
-           ),
-         );
-         return;
-       }
-     }
+      // Validate for exerciseKeyboard (typing)
+      if (_exerciseType == 'exerciseKeyboard') {
+        final hasTarget = _typingTargetController.text.trim().isNotEmpty;
+        if (!hasTarget) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please provide a typing target text'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+
+        // If image is toggled on, validate the asset exists
+        if (_showImage) {
+          final imageName = _imageFileNameController.text.trim();
+          if (imageName.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please provide an image file name'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
+          final okImage = await _verifyImageAsset(imageName);
+          if (!okImage) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Image file not found: assets/images/$imageName'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
+        }
+
+        // If an audio file is provided, verify it exists in assets/audio
+        final audioName = _audioFileNameController.text.trim();
+        if (audioName.isNotEmpty) {
+          final okAudio = await _verifyAudioAsset(audioName);
+          if (!okAudio) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Audio file not found: assets/audio/$audioName'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
+        }
+      }
 
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
     
@@ -492,12 +545,15 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
         'showRightArrow': _showRightArrow,
         'sendMessages': _sendMessages,
       };
-     } else if (_exerciseType == 'exerciseKeyboard') {
+   } else if (_exerciseType == 'exerciseKeyboard') {
        exerciseData = {
          'header1': _header1Controller.text.isEmpty ? null : _header1Controller.text,
          'header2': _header2Controller.text.isEmpty ? null : _header2Controller.text,
          'transliteration': _transliterationController.text.isEmpty ? null : _transliterationController.text,
          'typingTarget': _typingTargetController.text,
+     'audioFileName': _audioFileNameController.text.isEmpty ? null : _audioFileNameController.text,
+         'showImage': _showImage,
+         'imageFileName': _imageFileNameController.text.isEmpty ? null : _imageFileNameController.text,
          'showMicrophone': _showMicrophone,
          'microphonePrompt': _microphonePromptController.text.isEmpty ? null : _microphonePromptController.text,
          'showContinueButton': _showContinueButton,
@@ -961,10 +1017,71 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
                 return null;
               },
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Optional Audio Button',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF4D382D),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _audioFileNameController,
+              decoration: const InputDecoration(
+                labelText: 'Audio file name (under assets/audio) — optional',
+                border: OutlineInputBorder(),
+                hintText: 'e.g., Ba.mp3',
+                helperText: 'If provided, a play button appears next to Header 2',
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Optional Image Section',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF4D382D),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Show Image'),
+              value: _showImage,
+              onChanged: (v) => setState(() => _showImage = v),
+            ),
+            TextFormField(
+              controller: _imageFileNameController,
+              decoration: const InputDecoration(
+                labelText: 'Image file name (under assets/images)',
+                border: OutlineInputBorder(),
+                hintText: 'e.g., camel.png',
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<bool> _verifyAudioAsset(String fileName) async {
+    try {
+      await rootBundle.load('assets/audio/$fileName');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _verifyImageAsset(String fileName) async {
+    try {
+      await rootBundle.load('assets/images/$fileName');
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Widget _buildMicrophoneSection() {

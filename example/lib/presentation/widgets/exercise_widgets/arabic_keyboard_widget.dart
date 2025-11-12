@@ -30,6 +30,16 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
   bool _isShiftPressed = false;
   String? _selectedBaseKey; // For showing diacritic options
   
+  Set<String> _getBaseLayoutCharacters() {
+    final set = <String>{};
+    for (final row in ArabicKeyboard.layout) {
+      for (final ch in row) {
+        set.add(ch);
+      }
+    }
+    return set;
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -59,12 +69,23 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
                 );
               }),
               
-              // Special keys row
+              // Special keys row (Space on the left of Shift)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Space first, then Shift, then Enter, then Backspace
+                    Expanded(
+                      flex: 2,
+                      child: _buildSpecialKey(
+                        context,
+                        'مسافة',
+                        widget.onSpace,
+                        color: _shouldHighlightSpace() ? Colors.green[300] : null,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                     _buildSpecialKey(
                       context,
                       'Shift',
@@ -73,24 +94,15 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
                           _isShiftPressed = !_isShiftPressed;
                         });
                       },
-                      color: _isShiftPressed ? Colors.blue : null,
-                      flex: 1,
+            color: _isShiftPressed
+              ? Colors.blue
+              : (_shouldHighlightShift() ? Colors.green[300] : null),
                     ),
                     const SizedBox(width: 4),
-                    _buildSpecialKey(
-                      context,
-                      ArabicKeyboard.enter,
-                      widget.onEnter ?? () {},
-                      flex: 1,
-                    ),
+                    _buildSpecialKey(context, ArabicKeyboard.enter, widget.onEnter ?? () {}),
                     const SizedBox(width: 4),
-                    _buildSpecialKey(
-                      context,
-                      ArabicKeyboard.backspace,
-                      widget.onBackspace,
-                      color: _shouldHighlightBackspace() ? Colors.orange : null,
-                      flex: 1,
-                    ),
+                    _buildSpecialKey(context, ArabicKeyboard.backspace, widget.onBackspace,
+                        color: _shouldHighlightBackspace() ? Colors.orange : null),
                   ],
                 ),
               ),
@@ -104,23 +116,19 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
   List<Widget> _buildRowKeys(List<String> row, int rowIndex) {
     final keys = <Widget>[];
     
-    for (final key in row) {
-      if (key == ' ') {
-        // Space bar
-        keys.add(
-          Expanded(
-            flex: 3,
-            child: _buildSpecialKey(
-              context,
-              'مسافة',
-              widget.onSpace,
-            ),
-          ),
-        );
-      } else {
-        // Regular key
-        keys.add(_buildKey(context, key));
-      }
+  // When Shift is pressed, show only keys that have a shift mapping to reduce clutter
+  final baseSet = _getBaseLayoutCharacters();
+  final displayRow = _isShiftPressed
+    ? row
+      .where((k) => ArabicKeyboard.shiftMappings.containsKey(k))
+      // Hide keys whose shifted value duplicates a base layout character
+      .where((k) => !baseSet.contains(ArabicKeyboard.shiftMappings[k]))
+      .toList()
+    : row;
+
+  // Remove space-handling inside rows; only regular keys
+  for (final key in displayRow) {
+      keys.add(Expanded(child: _buildKey(context, key)));
     }
     
     return keys;
@@ -133,6 +141,8 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
       displayChar = ArabicKeyboard.shiftMappings[character]!;
     }
     
+    // Ensure base and shift layouts do not duplicate: when shift is on, show only shifted symbols
+    // but we still tap the displayed character.
     final shouldHighlight = _shouldHighlightKey(character) || _shouldHighlightKey(displayChar);
     final isEnabled = widget.enabled;
     final hasDiacritics = ArabicKeyboard.hasDiacritics(character);
@@ -156,6 +166,7 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
           child: InkWell(
             onTap: isEnabled 
                 ? () {
+                    // Send the displayed character (handles shift variants)
                     widget.onKeyPressed(displayChar);
                     setState(() {
                       _selectedBaseKey = null;
@@ -167,7 +178,7 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
                 : null,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              width: _getKeyWidth(character),
+              // Use responsive width by expanding in row; keep min width for tap comfort
               height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
@@ -254,23 +265,17 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
     );
   }
   
-  double _getKeyWidth(String character) {
-    // Adjust key width based on character
-    if (character == ' ') return 120;
-    if (character.length > 1) return 48; // For special chars like 'لا'
-    return 32;
-  }
+  // Removed fixed width calculation; keys are responsive using Expanded.
 
   Widget _buildSpecialKey(
     BuildContext context,
     String label,
     VoidCallback onPressed, {
-    int flex = 1,
     Color? color,
   }) {
     final isEnabled = widget.enabled;
     
-    return Material(
+  return Material(
       color: color ?? Colors.white,
       borderRadius: BorderRadius.circular(8),
       elevation: 2,
@@ -332,11 +337,38 @@ class _ArabicKeyboardWidgetState extends State<ArabicKeyboardWidget> {
     return false;
   }
 
+  bool _shouldHighlightSpace() {
+    if (!widget.highlightNextKey || widget.currentInputState == null) return false;
+    final expectedInput = widget.currentInputState!.expectedInput;
+    final currentLength = widget.currentInputState!.characterStates
+        .where((s) => s.status != CharacterStatus.pending)
+        .length;
+    if (currentLength >= expectedInput.length) return false;
+    return expectedInput[currentLength] == ' ';
+  }
+
   bool _shouldHighlightBackspace() {
     if (widget.currentInputState == null) return false;
     
     // Highlight backspace if there are incorrect characters
     return widget.currentInputState!.characterStates
         .any((s) => s.status == CharacterStatus.incorrect);
+  }
+
+  bool _shouldHighlightShift() {
+    if (!widget.highlightNextKey || widget.currentInputState == null) return false;
+    final expectedInput = widget.currentInputState!.expectedInput;
+    final currentLength = widget.currentInputState!.characterStates
+        .where((s) => s.status != CharacterStatus.pending)
+        .length;
+    if (currentLength >= expectedInput.length) return false;
+    final nextChar = expectedInput[currentLength];
+
+    // If nextChar is produced only via shift from any base key, highlight Shift.
+    // That is, it appears among shiftMappings.values, and it is not directly present in the base layout.
+    final isShiftProduct = ArabicKeyboard.shiftMappings.values.contains(nextChar);
+    final baseSet = _getBaseLayoutCharacters();
+    final inBase = baseSet.contains(nextChar);
+    return isShiftProduct && !inBase;
   }
 }
