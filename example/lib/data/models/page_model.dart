@@ -69,12 +69,49 @@ class PageModel {
 
   /// Convert to JSON for storage
   Map<String, dynamic> toJson() {
+    // Convert sendMessages to ensure they have proper structure
+    Map<String, dynamic>? processedExerciseData;
+    if (exerciseData != null) {
+      processedExerciseData = Map<String, dynamic>.from(exerciseData!);
+      
+      // Ensure sendMessages have proper structure with id, type, content, trigger, afterId
+      if (processedExerciseData.containsKey('sendMessages')) {
+        final sendMessages = processedExerciseData['sendMessages'] as List<dynamic>?;
+        if (sendMessages != null) {
+          processedExerciseData['sendMessages'] = sendMessages.map((message) {
+            if (message is Map<String, dynamic>) {
+              // Ensure each message has required fields
+              final processedMessage = Map<String, dynamic>.from(message);
+              
+              // Generate ID if missing
+              if (!processedMessage.containsKey('id') || processedMessage['id'] == null) {
+                processedMessage['id'] = 'msg_${DateTime.now().millisecondsSinceEpoch}_${processedMessage.hashCode.abs()}';
+              }
+              
+              // Set default trigger if missing
+              if (!processedMessage.containsKey('trigger') || processedMessage['trigger'] == null) {
+                processedMessage['trigger'] = 'onStart';
+              }
+              
+              // Ensure type is set
+              if (!processedMessage.containsKey('type') || processedMessage['type'] == null) {
+                processedMessage['type'] = 'avatarMessage';
+              }
+              
+              return processedMessage;
+            }
+            return message;
+          }).toList();
+        }
+      }
+    }
+    
     return {
       'id': id,
       'backgroundColor': backgroundColor.value.toInt(),
       'randomPlaceholder': randomPlaceholder,
       'exerciseType': exerciseType,
-      'exerciseData': exerciseData,
+      'exerciseData': processedExerciseData,
       'title': title,
       'content': content,
     };

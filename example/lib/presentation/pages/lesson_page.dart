@@ -5,6 +5,7 @@ import '../../data/models/lesson_model.dart';
 import '../../data/models/page_model.dart';
 import '../widgets/crud_menu.dart';
 import '../widgets/exercise_widget_factory.dart';
+import '../widgets/exercise_intro_widget.dart';
 import '../../widgets/adaptive_app_bar.dart';
 
 /// Main lesson page displaying a series of pages with navigation controls
@@ -41,6 +42,9 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
 
   // Animation controllers for page transitions (for future use)
   late AnimationController _slideAnimationController;
+  
+  // GlobalKeys for ExerciseIntroWidget instances to control navigation
+  final Map<int, GlobalKey<ExerciseIntroWidgetState>> _pageKeys = {};
 
   @override
   void initState() {
@@ -131,6 +135,27 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     _navigateToPage(_currentPageIndex + 1);
   }
 
+  void _onPageChanged(int newIndex) {
+    final previousIndex = _currentPageIndex;
+    
+    // Pause media on previous page if it exists
+    if (_pageKeys.containsKey(previousIndex)) {
+      _pageKeys[previousIndex]?.currentState?.pauseMedia();
+    }
+    
+    setState(() {
+      _currentPageIndex = newIndex;
+    });
+    
+    // Restart intro on new page if it exists
+    if (_pageKeys.containsKey(newIndex)) {
+      // Use a small delay to ensure the page is fully visible
+      Future.delayed(const Duration(milliseconds: 300), () {
+        _pageKeys[newIndex]?.currentState?.restartIntroIfNeeded();
+      });
+    }
+  }
+
   void _goToPreviousPage() {
     if (_currentPageIndex <= 0) {
       // Show snackbar when at first page
@@ -201,13 +226,30 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
     setState(() {});
   }
 
-  Widget _buildPage(PageModel page) {
-    return ExerciseWidgetFactory.build(
-      page,
-      onContinue: () {
-        _goToNextPage();
-      },
-    );
+  Widget _buildPage(PageModel page, int index) {
+    // Ensure we have a GlobalKey for this page index
+    if (!_pageKeys.containsKey(index)) {
+      _pageKeys[index] = GlobalKey<ExerciseIntroWidgetState>();
+    }
+
+    // Pass the GlobalKey only if this is an ExerciseIntroWidget
+    if (page.exerciseType == 'exerciseIntro') {
+      return ExerciseIntroWidget(
+        key: _pageKeys[index],
+        page: page,
+        onContinue: () {
+          _goToNextPage();
+        },
+      );
+    } else {
+      // Use factory for other types
+      return ExerciseWidgetFactory.build(
+        page,
+        onContinue: () {
+          _goToNextPage();
+        },
+      );
+    }
   }
 
   @override
@@ -310,13 +352,11 @@ class _LessonPageState extends State<LessonPage> with TickerProviderStateMixin {
                         return PageView.builder(
                           controller: _pageController,
                           onPageChanged: (index) {
-                            setState(() {
-                              _currentPageIndex = index;
-                            });
+                            _onPageChanged(index);
                           },
                           itemCount: pages.length,
                           itemBuilder: (context, index) {
-                            return _buildPage(pages[index]);
+                            return _buildPage(pages[index], index);
                           },
                         );
                       },

@@ -340,6 +340,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   // Form state
   String _exerciseType = 'exerciseIntro'; // Default to exerciseIntro instead of legacy
   String _videoTrigger = 'onStart';
+  String? _videoAfterMessageId; // Track which message ID the video should follow
   bool _allowUserVideoControl = false;
   bool _autoPlay = false;
   bool _showMicrophone = false;
@@ -375,6 +376,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _microphonePromptController.text = exerciseData['microphonePrompt'] as String? ?? '';
     
     _videoTrigger = exerciseData['videoTrigger'] as String? ?? 'onStart';
+    _videoAfterMessageId = exerciseData['videoAfterMessageId'] as String?;
     _allowUserVideoControl = exerciseData['allowUserVideoControl'] as bool? ?? false;
     _autoPlay = exerciseData['autoPlay'] as bool? ?? false;
     _showMicrophone = exerciseData['showMicrophone'] as bool? ?? false;
@@ -430,6 +432,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
         'transliteration': _transliterationController.text.isEmpty ? null : _transliterationController.text,
         'videoName': _videoNameController.text.isEmpty ? null : _videoNameController.text,
         'videoTrigger': _videoTrigger,
+        'videoAfterMessageId': _videoAfterMessageId,
         'allowUserVideoControl': _allowUserVideoControl,
         'autoPlay': _autoPlay,
         'showMicrophone': _showMicrophone,
@@ -634,9 +637,10 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'onStart', child: Text('On Start')),
-                DropdownMenuItem(value: 'afterAvatarX', child: Text('After Avatar Message')),
-                DropdownMenuItem(value: 'afterVideoX', child: Text('After Video')),
+                DropdownMenuItem(value: 'onStart', child: Text('On Start - Plays immediately when page loads')),
+                DropdownMenuItem(value: 'afterAvatarX', child: Text('After Avatar Message - Plays after specific message finishes')),
+                DropdownMenuItem(value: 'afterVideoX', child: Text('After Video - Plays after another video finishes')),
+                DropdownMenuItem(value: 'normal', child: Text('Manual - User triggered only')),
               ],
               onChanged: (value) {
                 setState(() {
@@ -645,6 +649,44 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
               },
             ),
             const SizedBox(height: 12),
+
+            // Show message selection when "After Avatar Message" is selected
+            if (_videoTrigger == 'afterAvatarX') ...[
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Play after which avatar message:',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        // This will refresh the available messages
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Message list refreshed'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Refresh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[100],
+                      foregroundColor: Colors.blue[700],
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _buildVideoMessageSelectionDropdown(),
+              const SizedBox(height: 12),
+            ],
+
             SwitchListTile(
               title: const Text('Allow User Video Control'),
               subtitle: const Text('Show play/pause controls'),
@@ -668,6 +710,73 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildVideoMessageSelectionDropdown() {
+    final availableMessages = _sendMessages
+        .where((msg) => msg['type'] == 'avatarMessage' && msg['id'] != null)
+        .toList();
+
+    if (availableMessages.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          border: Border.all(color: Colors.orange[200]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'No avatar messages found',
+              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Create avatar messages in the "Send Messages" section below first.',
+              style: TextStyle(fontSize: 12, color: Colors.orange),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: _videoAfterMessageId,
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        labelText: 'Select Message',
+        hintText: 'Choose which message must finish first',
+      ),
+      items: availableMessages
+          .asMap()
+          .entries
+          .map((entry) {
+            final index = entry.key;
+            final msg = entry.value;
+            final content = msg['content'] as String? ?? '';
+            return DropdownMenuItem(
+              value: msg['id'] as String,
+              child: Text(
+                'Message ${index + 1}: ${content.length > 30 ? content.substring(0, 30) + '...' : content}',
+                style: const TextStyle(fontSize: 14),
+              ),
+            );
+          })
+          .toList(),
+      onChanged: (value) {
+        setState(() {
+          _videoAfterMessageId = value;
+        });
+      },
+      validator: (value) {
+        if (_videoTrigger == 'afterAvatarX' && value == null) {
+          return 'Please select which message the video should follow';
+        }
+        return null;
+      },
     );
   }
 
@@ -801,6 +910,10 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   Widget _buildMessageItem(int index, Map<String, dynamic> message) {
     final messageType = message['type'] as String;
     final isAvatarMessage = messageType == 'avatarMessage';
+    final trigger = message['trigger'] as String? ?? 'onStart';
+    final afterId = message['afterId'] as String?;
+    final content = message['content'] as String? ?? '';
+    final messageId = message['id'] as String? ?? 'no-id';
     
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -812,9 +925,11 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Message ${index + 1}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    'Message ${index + 1} (ID: ${messageId.length > 15 ? messageId.substring(0, 15) + '...' : messageId})',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete, size: 20),
@@ -822,6 +937,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Icon(
@@ -830,76 +946,110 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
                   color: isAvatarMessage ? Colors.blue : Colors.green,
                 ),
                 const SizedBox(width: 8),
-                Text('Type: ${message['type']}'),
+                Text('Type: $messageType'),
               ],
             ),
-            Text('Content: ${message['content']}'),
-            if (isAvatarMessage)
-              const Text(
-                'Timing: Waits for avatar speech to complete',
-                style: TextStyle(
+            const SizedBox(height: 4),
+            if (content.isNotEmpty)
+              Text(
+                'Content: ${content.length > 50 ? content.substring(0, 50) + '...' : content}',
+                style: const TextStyle(fontStyle: FontStyle.italic),
+              ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  _getTriggerIcon(trigger),
+                  size: 14,
+                  color: _getTriggerColor(trigger),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Trigger: ${_getTriggerDisplayName(trigger)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _getTriggerColor(trigger),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            if (afterId != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Plays after: ${afterId.length > 20 ? afterId.substring(0, 20) + '...' : afterId}',
+                style: const TextStyle(
                   fontSize: 12,
-                  color: Colors.green,
+                  color: Colors.orange,
                   fontStyle: FontStyle.italic,
                 ),
-              )
-            else if (message['delaySeconds'] != null)
-              Text('Delay: ${message['delaySeconds']}s'),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  IconData _getTriggerIcon(String trigger) {
+    switch (trigger) {
+      case 'onStart':
+        return Icons.play_arrow;
+      case 'afterVideo':
+        return Icons.video_library;
+      case 'afterMessage':
+        return Icons.chat;
+      case 'normal':
+        return Icons.touch_app;
+      default:
+        return Icons.help;
+    }
+  }
+
+  Color _getTriggerColor(String trigger) {
+    switch (trigger) {
+      case 'onStart':
+        return Colors.green;
+      case 'afterVideo':
+        return Colors.blue;
+      case 'afterMessage':
+        return Colors.orange;
+      case 'normal':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getTriggerDisplayName(String trigger) {
+    switch (trigger) {
+      case 'onStart':
+        return 'On Start';
+      case 'afterVideo':
+        return 'After Video';
+      case 'afterMessage':
+        return 'After Message';
+      case 'normal':
+        return 'Manual';
+      default:
+        return trigger;
+    }
+  }
+
   void _addMessage() {
-    // Enhanced implementation with better defaults for speech-end detection
+    // Get existing messages for afterId selection
+    final existingMessages = _sendMessages.where((msg) => msg['id'] != null).toList();
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Message'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Choose message type:'),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.chat),
-              title: const Text('Avatar Message'),
-              subtitle: const Text('Uses speech-end detection for timing'),
-              onTap: () {
-                setState(() {
-                  _sendMessages.add({
-                    'type': 'avatarMessage',
-                    'content': 'Hello! Welcome to this lesson.',
-                    'delaySeconds': 0.0, // No longer needed with speech-end detection
-                  });
-                });
-                Navigator.of(context).pop();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.video_library),
-              title: const Text('Video'),
-              subtitle: const Text('Plays after previous message completes'),
-              onTap: () {
-                setState(() {
-                  _sendMessages.add({
-                    'type': 'video',
-                    'content': '', // Video trigger, no content needed
-                    'delaySeconds': 0.0,
-                  });
-                });
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
+      builder: (context) => _AddMessageDialog(
+        existingMessages: existingMessages,
+        page: widget.page,
+        onMessageAdded: (newMessage) {
+          setState(() {
+            _sendMessages.add(newMessage);
+          });
+        },
       ),
     );
   }
@@ -908,5 +1058,331 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     setState(() {
       _sendMessages.removeAt(index);
     });
+  }
+}
+
+/// Dialog for adding new messages with advanced trigger options
+class _AddMessageDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> existingMessages;
+  final PageModel page;
+  final Function(Map<String, dynamic>) onMessageAdded;
+
+  const _AddMessageDialog({
+    required this.existingMessages,
+    required this.page,
+    required this.onMessageAdded,
+  });
+
+  @override
+  State<_AddMessageDialog> createState() => _AddMessageDialogState();
+}
+
+class _AddMessageDialogState extends State<_AddMessageDialog> {
+  String _selectedType = 'avatarMessage';
+  String _selectedTrigger = 'onStart';
+  String? _selectedAfterId;
+  final _contentController = TextEditingController();
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  String _generateUniqueId() {
+    return 'msg_${DateTime.now().millisecondsSinceEpoch}_${_contentController.text.hashCode.abs()}';
+  }
+
+  Widget _buildMessageSelectionWidget() {
+    final availableMessages = widget.existingMessages
+        .where((msg) => msg['type'] == 'avatarMessage')
+        .toList();
+
+    if (availableMessages.isEmpty) {
+      return const Text(
+        'No existing avatar messages to chain to. Create an "On Start" avatar message first.',
+        style: TextStyle(color: Colors.orange),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: _selectedAfterId,
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        labelText: 'After Message',
+      ),
+      items: availableMessages
+          .map((msg) => DropdownMenuItem(
+                value: msg['id'] as String,
+                child: Text(
+                  'Message: ${(msg['content'] as String).length > 30 ? (msg['content'] as String).substring(0, 30) + '...' : msg['content']}',
+                ),
+              ))
+          .toList(),
+      onChanged: (value) {
+        setState(() {
+          _selectedAfterId = value;
+        });
+      },
+      validator: (value) {
+        if (_selectedTrigger == 'afterMessage' && value == null) {
+          return 'Please select which message to follow';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildVideoSelectionWidget() {
+    // Get videos from the current page's exercise data
+    final currentPage = widget.page;
+    final exerciseData = currentPage.exerciseData ?? {};
+    
+    List<String> availableVideos = [];
+    
+    // Check for main video in exercise data
+    final videoName = exerciseData['videoName'] as String?;
+    if (videoName != null && videoName.isNotEmpty) {
+      availableVideos.add(videoName);
+    }
+    
+    // TODO: In the future, when multiple videos per page are supported,
+    // we could scan for additional video sources here
+    
+    if (availableVideos.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          border: Border.all(color: Colors.orange[200]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'No videos found on this page',
+              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Add a video to this page first using the Video Settings section in the page editor.',
+              style: TextStyle(fontSize: 12, color: Colors.orange),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: _selectedAfterId,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            labelText: 'After Video',
+            hintText: 'Select which video must finish first',
+          ),
+          items: availableVideos
+              .map((video) => DropdownMenuItem(
+                    value: 'video_$video',
+                    child: Text('Video: $video'),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedAfterId = value;
+            });
+          },
+          validator: (value) {
+            if (_selectedTrigger == 'afterVideo' && value == null) {
+              return 'Please select which video to follow';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'This message will play automatically when the selected video finishes.',
+                  style: TextStyle(fontSize: 11, color: Colors.blue),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Message'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Message Type Selection
+            const Text('Message Type:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedType,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Type',
+              ),
+              items: const [
+                DropdownMenuItem(value: 'avatarMessage', child: Text('Avatar Message')),
+                // Removed 'video' option - use Video Settings section instead
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _selectedType = value!;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Content Field (always show for avatar messages)
+            const Text('Message Content:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _contentController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Avatar speech content',
+                hintText: 'What should the avatar say?',
+              ),
+              maxLines: 3,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter message content';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Trigger Selection
+            const Text('When to Play:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedTrigger,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Trigger',
+              ),
+              items: const [
+                DropdownMenuItem(value: 'onStart', child: Text('On Start - Plays immediately when page loads')),
+                DropdownMenuItem(value: 'afterMessage', child: Text('After Message - Plays after specific message finishes')),
+                DropdownMenuItem(value: 'afterVideo', child: Text('After Video - Plays after specific video finishes')),
+                DropdownMenuItem(value: 'normal', child: Text('Normal - Manual trigger only')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _selectedTrigger = value!;
+                  _selectedAfterId = null; // Reset selection
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // After ID Selection (for chained messages)
+            if (_selectedTrigger == 'afterMessage') ...[
+              const Text(
+                'Play After Which Message:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              _buildMessageSelectionWidget(),
+              const SizedBox(height: 16),
+            ],
+
+            // After Video Selection (for video-triggered messages)
+            if (_selectedTrigger == 'afterVideo') ...[
+              const Text(
+                'Play After Which Video:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              _buildVideoSelectionWidget(),
+              const SizedBox(height: 16),
+            ],
+
+            // Help Text
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Tips:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('• On Start: Plays immediately when page loads', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  Text('• After Message: Creates a sequence chain after specific message finishes', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  Text('• After Video: Plays automatically when specific video completes', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  Text('• Normal: Won\'t auto-play, for user-triggered content only', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_selectedType == 'avatarMessage' && _contentController.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enter message content')),
+              );
+              return;
+            }
+
+            if ((_selectedTrigger == 'afterMessage' || _selectedTrigger == 'afterVideo') && _selectedAfterId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please select which message/video to follow')),
+              );
+              return;
+            }
+
+            final newMessage = <String, dynamic>{
+              'id': _generateUniqueId(),
+              'type': _selectedType,
+              'content': _selectedType == 'avatarMessage' ? _contentController.text.trim() : '',
+              'trigger': _selectedTrigger,
+            };
+
+            if (_selectedAfterId != null) {
+              newMessage['afterId'] = _selectedAfterId;
+            }
+
+            widget.onMessageAdded(newMessage);
+            Navigator.of(context).pop();
+          },
+          child: const Text('Add Message'),
+        ),
+      ],
+    );
   }
 }
