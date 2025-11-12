@@ -148,11 +148,8 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
       final delaySeconds = (message['delaySeconds'] as num?)?.toDouble() ?? 0.0;
       
       if (type == 'avatarMessage' && _avatar != null) {
-        await _avatar!.sendTextMessage(content);
-        // Wait for estimated speaking time (0.5 seconds per word)
-        final wordCount = content.split(' ').length;
-        final speakingDelay = Duration(seconds: (wordCount * 0.5).round());
-        await Future.delayed(speakingDelay);
+        // Use the new sendMessageAndWait helper to wait for speech end
+        await _avatar!.sendMessageAndWait(content, timeout: const Duration(seconds: 15));
       } else if (type == 'video' && _videoController != null) {
         // Play video after delay
         if (delaySeconds > 0) {
@@ -192,14 +189,26 @@ class _ExerciseIntroWidgetState extends State<ExerciseIntroWidget> {
     }
   }
 
-  void _onMicrophonePressEnd() {
+  void _onMicrophonePressEnd() async {
     setState(() {
       _isMicPressed = false;
       _microphoneUsed = true;
     });
 
     if (_avatar != null) {
-      _avatar!.setMicrophoneEnabled(false);
+      await _avatar!.setMicrophoneEnabled(false);
+      
+      // Optional: Wait for avatar feedback to complete
+      // This ensures user sees/hears the complete pronunciation feedback
+      try {
+        await _avatar!.eventStream
+            .where((event) => event['type'] == 'avatar_speech_ended')
+            .first
+            .timeout(const Duration(seconds: 10)); // Timeout after 10s
+      } catch (e) {
+        // If no feedback comes, that's fine - continue normally
+        print('No avatar feedback received or timeout: $e');
+      }
     }
   }
 

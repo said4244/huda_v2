@@ -33,3 +33,8 @@ build/
 # Project-specific directories
 server copy/
 test/
+
+# Environment variables (contains secrets)
+.env
+server/.env
+**/.env
