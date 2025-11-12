@@ -83,9 +83,12 @@ class PageModel {
               // Ensure each message has required fields
               final processedMessage = Map<String, dynamic>.from(message);
               
-              // Generate ID if missing
-              if (!processedMessage.containsKey('id') || processedMessage['id'] == null) {
-                processedMessage['id'] = 'msg_${DateTime.now().millisecondsSinceEpoch}_${processedMessage.hashCode.abs()}';
+              // Generate stable ID if missing (using content hash for consistency)
+              if (!processedMessage.containsKey('id') || processedMessage['id'] == null || (processedMessage['id'] as String).isEmpty) {
+                final content = processedMessage['content'] as String? ?? '';
+                final type = processedMessage['type'] as String? ?? 'avatarMessage';
+                final contentHash = content.hashCode.abs();
+                processedMessage['id'] = 'msg_${type}_${contentHash}_${DateTime.now().millisecondsSinceEpoch}';
               }
               
               // Set default trigger if missing
@@ -98,10 +101,21 @@ class PageModel {
                 processedMessage['type'] = 'avatarMessage';
               }
               
+              // Validate avatar message content
+              if (processedMessage['type'] == 'avatarMessage') {
+                final content = processedMessage['content'] as String? ?? '';
+                if (content.trim().isEmpty) {
+                  // Skip empty avatar messages rather than including them
+                  return null;
+                }
+                // Trim content to ensure consistency
+                processedMessage['content'] = content.trim();
+              }
+              
               return processedMessage;
             }
             return message;
-          }).toList();
+          }).where((msg) => msg != null).toList(); // Filter out null entries (empty messages)
         }
       }
     }

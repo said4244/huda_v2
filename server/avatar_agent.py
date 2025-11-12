@@ -455,46 +455,75 @@ async def entrypoint(ctx: agents.JobContext):
             async def handle_data():
                 try:
                     message = data_packet.data.decode('utf-8')
+                    logger.debug(f"📥 Received raw data message: {message[:200] if len(message) > 200 else message}")
+                    
                     data_obj = json.loads(message)
+                    
                     if data_obj.get('type') == 'user_message':
                         content = data_obj.get('content', '')
+                        
+                        # Enhanced content validation and logging
+                        if not content or not content.strip():
+                            logger.warning("❌ Received empty content in user_message - skipping processing")
+                            return
+                        
+                        content = content.strip()
+                        logger.info(f"📤 Processing user message: '{content[:100]}{'...' if len(content) > 100 else ''}' ({len(content)} chars)")
+                        
                         try:
                             # Emit speech started event
+                            logger.debug("🗣️ Emitting avatar_speech_started event")
                             speech_started_msg = json.dumps({"type": "avatar_speech_started"})
                             await ctx.room.local_participant.publish_data(
                                 speech_started_msg.encode('utf-8'), reliable=True, topic="avatar"
                             )
-                            logger.debug("Emitted avatar_speech_started event")
+                            logger.debug("✅ avatar_speech_started event emitted successfully")
                             
                             # Generate the reply (includes TTS streaming)
-                            handle = await session.generate_reply(instructions=content)
+                            logger.debug(f"🤖 Starting reply generation for content: '{content[:50]}...'")
+                            handle = await session.generate_reply(user_input=content)
+                            logger.debug("✅ Reply generation initiated")
                             
                             # Wait for the TTS audio to finish playing to LiveKit
+                            logger.debug("⏳ Waiting for TTS playout to complete...")
                             await handle.wait_for_playout()
-                            logger.debug("TTS playout completed")
+                            logger.debug("✅ TTS playout completed successfully")
                             
                             # Authoritatively signal EOS to clients
+                            logger.debug("🔚 Emitting avatar_speech_ended event")
                             speech_ended_msg = json.dumps({"type": "avatar_speech_ended"})
                             await ctx.room.local_participant.publish_data(
                                 speech_ended_msg.encode('utf-8'), reliable=True, topic="avatar"
                             )
-                            logger.debug("Emitted avatar_speech_ended event")
+                            logger.debug("✅ avatar_speech_ended event emitted successfully")
                             
                         except Exception as e:
-                            logger.error(f"Error processing prompt: {e}", exc_info=True)
+                            logger.error(f"❌ Error processing prompt: {e}", exc_info=True)
                             # Even if there's an error, signal that speech ended
                             try:
-                                error_msg = json.dumps({"type": "avatar_speech_ended"})
+                                logger.debug("⚠️ Error occurred - sending emergency avatar_speech_ended event")
+                                error_msg = json.dumps({
+                                    "type": "avatar_speech_ended",
+                                    "error": True,
+                                    "message": str(e)
+                                })
                                 await ctx.room.local_participant.publish_data(
                                     error_msg.encode('utf-8'), reliable=True, topic="avatar"
                                 )
-                            except:
-                                pass
+                                logger.debug("✅ Emergency avatar_speech_ended event sent")
+                            except Exception as cleanup_error:
+                                logger.error(f"❌ Failed to send emergency speech_ended event: {cleanup_error}")
+                    else:
+                        logger.debug(f"📋 Received non-user-message data: type={data_obj.get('type', 'unknown')}")
+                        
                 except json.JSONDecodeError as e:
-                    logger.error(f"Error parsing data message as JSON: {e}, Raw data: {data_packet.data}")
+                    logger.error(f"❌ Error parsing data message as JSON: {e}")
+                    logger.error(f"Raw data: {data_packet.data}")
                 except Exception as e:
-                    logger.error(f"Error processing data message: {e}", exc_info=True)
+                    logger.error(f"❌ Error processing data message: {e}", exc_info=True)
+            
             asyncio.create_task(handle_data())
+        
         ctx.room.on("data_received", on_data_received)
 
         # ------------------------------------------------------------------
