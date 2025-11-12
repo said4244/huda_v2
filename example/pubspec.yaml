@@ -24,7 +24,10 @@ dependencies:
   percent_indicator: ^4.2.3
   # Use the local package
   avatar_sts2:
-    path: ../
+    path: ../packages/avatar/
+  tracing_game:
+    path: ../packages/tracing/
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
@@ -40,6 +43,7 @@ flutter:
     - assets/images/letters/
     - assets/audio/
     - assets/svg/
+    - assets/tracing/
   fonts:
     - family: "Tufuli Arabic"
       fonts:

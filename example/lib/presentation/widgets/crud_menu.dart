@@ -336,6 +336,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   late TextEditingController _transliterationController;
   late TextEditingController _videoNameController;
   late TextEditingController _microphonePromptController;
+  late TextEditingController _letterController;
   
   // Form state
   String _exerciseType = 'exerciseIntro'; // Default to exerciseIntro instead of legacy
@@ -359,6 +360,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _transliterationController = TextEditingController();
     _videoNameController = TextEditingController();
     _microphonePromptController = TextEditingController();
+    _letterController = TextEditingController();
     
     // Load existing data
     _loadExistingData();
@@ -374,6 +376,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _transliterationController.text = exerciseData['transliteration'] as String? ?? '';
     _videoNameController.text = exerciseData['videoName'] as String? ?? '';
     _microphonePromptController.text = exerciseData['microphonePrompt'] as String? ?? '';
+    _letterController.text = exerciseData['letter'] as String? ?? '';
     
     _videoTrigger = exerciseData['videoTrigger'] as String? ?? 'onStart';
     _videoAfterMessageId = exerciseData['videoAfterMessageId'] as String?;
@@ -395,6 +398,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _transliterationController.dispose();
     _videoNameController.dispose();
     _microphonePromptController.dispose();
+    _letterController.dispose();
     super.dispose();
   }
 
@@ -421,6 +425,22 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
       }
     }
 
+    // Validate that essential fields are filled for exerciseTrace
+    if (_exerciseType == 'exerciseTrace') {
+      final hasLetter = _letterController.text.trim().isNotEmpty;
+      
+      if (!hasLetter) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please provide a letter for the tracing exercise'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+    }
+
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
     
     Map<String, dynamic>? exerciseData;
@@ -435,6 +455,18 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
         'videoAfterMessageId': _videoAfterMessageId,
         'allowUserVideoControl': _allowUserVideoControl,
         'autoPlay': _autoPlay,
+        'showMicrophone': _showMicrophone,
+        'microphonePrompt': _microphonePromptController.text.isEmpty ? null : _microphonePromptController.text,
+        'showContinueButton': _showContinueButton,
+        'showRightArrow': _showRightArrow,
+        'sendMessages': _sendMessages,
+      };
+    } else if (_exerciseType == 'exerciseTrace') {
+      exerciseData = {
+        'header1': _header1Controller.text.isEmpty ? null : _header1Controller.text,
+        'header2': _header2Controller.text.isEmpty ? null : _header2Controller.text,
+        'transliteration': _transliterationController.text.isEmpty ? null : _transliterationController.text,
+        'letter': _letterController.text,
         'showMicrophone': _showMicrophone,
         'microphonePrompt': _microphonePromptController.text.isEmpty ? null : _microphonePromptController.text,
         'showContinueButton': _showContinueButton,
@@ -513,6 +545,17 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
               const SizedBox(height: 24),
               _buildSendMessagesSection(),
             ],
+            if (_exerciseType == 'exerciseTrace') ...[
+              _buildHeadersSection(),
+              const SizedBox(height: 24),
+              _buildTraceAssetsSection(),
+              const SizedBox(height: 24),
+              _buildMicrophoneSection(),
+              const SizedBox(height: 24),
+              _buildUIOptionsSection(),
+              const SizedBox(height: 24),
+              _buildSendMessagesSection(),
+            ],
           ],
         ),
       ),
@@ -544,6 +587,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
               items: const [
                 DropdownMenuItem(value: 'legacy', child: Text('Legacy Page')),
                 DropdownMenuItem(value: 'exerciseIntro', child: Text('Exercise Intro')),
+                DropdownMenuItem(value: 'exerciseTrace', child: Text('Tracing Exercise')),
               ],
               onChanged: (value) {
                 setState(() {
@@ -597,6 +641,47 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
                 labelText: 'Header 2',
                 border: OutlineInputBorder(),
                 hintText: 'Secondary header (appears below video)',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTraceAssetsSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Tracing Letter',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _letterController,
+              decoration: const InputDecoration(
+                labelText: 'Arabic Letter',
+                hintText: 'e.g., ب',
+                border: OutlineInputBorder(),
+                helperText: 'The Arabic letter to trace (single character)',
+              ),
+              validator: (value) {
+                if (_exerciseType == 'exerciseTrace' && (value == null || value.trim().isEmpty)) {
+                  return 'Letter is required for tracing exercises';
+                }
+                return null;
+              },
+              maxLength: 3, // Allow for combined letters like لا
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 24,
+                fontFamily: 'Tufuli Arabic',
               ),
             ),
           ],
