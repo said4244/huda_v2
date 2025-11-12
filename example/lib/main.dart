@@ -12,6 +12,7 @@ import 'pages/steps_page.dart'; // Now contains SectionsPage
 import 'providers/sections_provider.dart';
 import 'providers/navigation_provider.dart';
 import 'providers/user_stats_provider.dart';
+import 'providers/lesson_progress_provider.dart';
 import 'data/providers/units_provider.dart';
 import 'data/providers/lessons_provider.dart';
 import 'data/services/lessons_service.dart';
@@ -74,6 +75,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SectionsProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
+        ChangeNotifierProvider(create: (_) => LessonProgressProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
         ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsService, lessonsBox)),
       ],

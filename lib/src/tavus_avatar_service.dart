@@ -233,45 +233,31 @@ class TavusAvatar {
     }
   }
 
-  /// Send a system prompt and wait for avatar to finish responding
-  Future<void> publishSystemPromptAndWait(Map<String, dynamic> prompt, {Duration? timeout}) async {
-    TavusLogger.info('publishSystemPromptAndWait called');
-    
-    if (!isConnected) {
-      throw Exception('Avatar not connected');
-    }
-    
+  /// Publishes a system prompt and waits for an ACK or timeout.
+  Future<void> publishSystemPromptAndWait(
+    Map<String, dynamic> prompt, {
+    Duration timeout = const Duration(milliseconds: 600),
+  }) async {
+    // publish over data channel
+    await publishData(json.encode(prompt)); // existing helper
+
+    // Wait for server ack if available, fallback to timeout
     final completer = Completer<void>();
-    late StreamSubscription sub;
-    
-    // Listen for speech ended events
-    sub = eventStream.listen((event) {
-      if (event['type'] == 'avatar_speech_ended') {
-        TavusLogger.info('Received avatar_speech_ended event for system prompt, completing wait');
-        sub.cancel();
-        if (!completer.isCompleted) {
+    StreamSubscription? sub;
+    sub = eventStream.listen((evt) {
+      try {
+        if (evt['type'] == 'system_prompt_ack' &&
+            evt['purpose'] == prompt['purpose']) {
           completer.complete();
         }
-      }
+      } catch (_) {}
     });
-    
     try {
-      // Send the system prompt
-      await publishData(json.encode(prompt));
-      
-      // Wait either for the EOS event or an optional timeout
-      if (timeout != null) {
-        return completer.future.timeout(timeout, onTimeout: () {
-          TavusLogger.warning('publishSystemPromptAndWait timed out after ${timeout.inSeconds}s');
-          sub.cancel();
-          return;
-        });
-      } else {
-        return completer.future;
-      }
-    } catch (e) {
-      sub.cancel();
-      rethrow;
+      await completer.future.timeout(timeout);
+    } catch (_) {
+      // timeout: OK, proceed
+    } finally {
+      await sub.cancel();
     }
   }
 
