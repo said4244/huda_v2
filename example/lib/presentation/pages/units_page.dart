@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:get/get.dart';
 import '../../data/providers/units_provider.dart';
+import '../../data/providers/lessons_provider.dart';
 import '../../data/models/unit_model.dart';
 import '../../data/models/level_model.dart';
 import '../widgets/unit_section.dart';
@@ -11,6 +12,7 @@ import '../../providers/navigation_provider.dart';
 import '../../providers/user_stats_provider.dart';
 import '../../utils/responsive_helper.dart';
 import '../../controllers/page_transition_controller.dart';
+import '../../main.dart'; // For adminLogin
 
 /// Main Units Page implementing Duolingo-style learning path
 /// Features:
@@ -266,6 +268,7 @@ class _UnitsPageState extends State<UnitsPage> with TickerProviderStateMixin {
   /// Handle level tap - start level or navigate to lesson
   void _handleLevelTap(UnitModel unit, LevelModel level) async {
     final unitsProvider = Provider.of<UnitsProvider>(context, listen: false);
+    final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
     
     // Check if level is accessible
     if (level.status == LevelStatus.locked && level.type != LevelType.fastForward) {
@@ -282,13 +285,16 @@ class _UnitsPageState extends State<UnitsPage> with TickerProviderStateMixin {
       // Start the level
       await unitsProvider.startLevel(unit.id, level.id);
       
+      // Get or create lesson for this unit/level (ensures lesson exists)
+      lessonsProvider.getLesson(unit.id, level.id, adminMode: adminLogin);
+      
       // Navigate to lesson page
       if (mounted) {
         Navigator.of(context).pushNamed(
           '/lesson',
           arguments: {
-            'unit': unit,
-            'level': level,
+            'unitId': unit.id,
+            'levelId': level.id,
             'sectionId': widget.sectionId,
           },
         );
