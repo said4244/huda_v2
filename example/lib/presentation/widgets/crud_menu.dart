@@ -719,6 +719,15 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
         .toList();
 
     if (availableMessages.isEmpty) {
+      // Reset the selection if no messages are available
+      if (_videoAfterMessageId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          setState(() {
+            _videoAfterMessageId = null;
+          });
+        });
+      }
+      
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -743,8 +752,23 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
       );
     }
 
+    // Validate that the current selection still exists in available messages
+    final availableMessageIds = availableMessages.map((msg) => msg['id'] as String).toSet();
+    final validatedSelection = availableMessageIds.contains(_videoAfterMessageId) 
+        ? _videoAfterMessageId 
+        : null;
+    
+    // Update the selection if it's invalid
+    if (validatedSelection != _videoAfterMessageId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _videoAfterMessageId = validatedSelection;
+        });
+      });
+    }
+
     return DropdownButtonFormField<String>(
-      value: _videoAfterMessageId,
+      value: validatedSelection,
       decoration: const InputDecoration(
         border: OutlineInputBorder(),
         labelText: 'Select Message',
@@ -1056,7 +1080,15 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
 
   void _removeMessage(int index) {
     setState(() {
+      final removedMessage = _sendMessages[index];
+      final removedMessageId = removedMessage['id'] as String?;
+      
       _sendMessages.removeAt(index);
+      
+      // If the removed message was selected for video trigger, clear the selection
+      if (_videoAfterMessageId == removedMessageId) {
+        _videoAfterMessageId = null;
+      }
     });
   }
 }
