@@ -1,0 +1,10 @@
+[
+  {
+    "id":"7cfsdk2e",
+    "name":"Ahmed",
+    "age":12,
+    "language":"nl",
+    "unlockedCourses":["arabic_steps"],
+    "unlockedSteps":{"arabic_steps":[1,2]}
+  }
+]
