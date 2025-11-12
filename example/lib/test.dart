@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:get/get.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'pages/steps_page.dart';
 import 'providers/sections_provider.dart';
 import 'providers/navigation_provider.dart';
@@ -15,6 +16,9 @@ import 'controllers/page_transition_controller.dart';
 // Test admin configuration - set to true to enable CRUD features in test
 const bool testAdminLogin = true;
 
+// Global test Hive box reference for sharing across test widgets
+late Box _globalTestLessonsBox;
+
 /// Quick test app to preview the sections page without going through the full flow
 /// 
 /// To run this instead of main.dart:
@@ -24,11 +28,18 @@ const bool testAdminLogin = true;
 /// 
 /// OR create a separate entry point by running:
 /// flutter run -t lib/test.dart --hot
-void main() {
-  // Initialize GetX controller for test environment
+void main() async {
+  // Initialize GetX controller and Hive for test environment
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Hive for persistent storage (same as main.dart)
+  await Hive.initFlutter();
+  final testLessonsBox = await Hive.openBox('test_lessons'); // Separate box for testing
+  _globalTestLessonsBox = testLessonsBox;
+  
   Get.put(PageTransitionController());
   
-  runApp(const TestSectionsApp());
+  runApp(TestSectionsApp(lessonsBox: testLessonsBox));
 }
 
 /// Switch between different test modes by changing this:
@@ -40,7 +51,9 @@ void main() {
 // void main() => runApp(const LessonPageTest());
 
 class TestSectionsApp extends StatelessWidget {
-  const TestSectionsApp({super.key});
+  final Box lessonsBox;
+  
+  const TestSectionsApp({super.key, required this.lessonsBox});
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +63,7 @@ class TestSectionsApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider()),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsBox)),
       ],
       child: GetMaterialApp(
         title: 'Sections Test',
@@ -136,7 +149,7 @@ class MinimalSectionsTest extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider()),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsBox)),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -162,7 +175,7 @@ class UnitsPageTest extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider()),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsBox)),
       ],
       child: MaterialApp(
         title: 'Units Test',
@@ -194,7 +207,7 @@ class LessonPageTest extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => LessonsProvider()),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(_globalTestLessonsBox)),
       ],
       child: MaterialApp(
         title: 'Lesson Test',

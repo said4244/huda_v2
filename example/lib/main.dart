@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:get/get.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:avatar_sts2/avatar_sts2.dart';
 import 'pages/intro_page.dart';
 import 'pages/video_call_page.dart';
@@ -23,6 +24,10 @@ const bool adminLogin = true;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Initialize Hive for persistent storage
+  await Hive.initFlutter();
+  final lessonsBox = await Hive.openBox('lessons');
+  
   // Initialize web audio unlock for mobile browsers
   if (kIsWeb) {
     registerWebAudioUnlock();
@@ -31,11 +36,13 @@ void main() async {
   // Initialize GetX controller
   Get.put(PageTransitionController());
   
-  runApp(const MyApp());
+  runApp(MyApp(lessonsBox: lessonsBox));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final Box lessonsBox;
+  
+  const MyApp({super.key, required this.lessonsBox});
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +55,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         ChangeNotifierProvider(create: (_) => UserStatsProvider()),
         ChangeNotifierProvider(create: (_) => UnitsProvider()),
-        ChangeNotifierProvider(create: (_) => LessonsProvider()),
+        ChangeNotifierProvider(create: (_) => LessonsProvider(lessonsBox)),
       ],
       child: GetMaterialApp(
         title: 'Huda Avatar',
