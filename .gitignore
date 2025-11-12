@@ -40,9 +40,17 @@ server/.env
 **/.env
 
 # Documentation files (except README)
+# Ignore all Markdown files but keep any README (case-insensitive) anywhere
 *.md
-!README.md
-!**/README.md
+![Rr][Ee][Aa][Dd][Mm][Ee].md
+!**/[Rr][Ee][Aa][Dd][Mm][Ee].md
+
+# Font files (ignore all fonts globally)
+*.ttf
+*.otf
+*.woff
+*.woff2
+*.eot
 
 # Test and development files
 server/test_enhanced_logging.py

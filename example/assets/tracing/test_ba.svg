@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="920" viewBox="0 0 800 920" xmlns="http://www.w3.org/2000/svg">
+  <!-- Simple Ba letter path for testing -->
+  <path d="M531.941,451 C546.838,475.324 572.944,529.585 562.665,570 C505.686,570 362.679,570 303.465,570 C244.252,570 215.762,536.882 249.279,451" 
+        stroke="#000" stroke-width="2" fill="none"/>
+</svg>

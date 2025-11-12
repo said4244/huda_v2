@@ -337,6 +337,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
   late TextEditingController _videoNameController;
   late TextEditingController _microphonePromptController;
   late TextEditingController _letterController;
+  late TextEditingController _typingTargetController;
   
   // Form state
   String _exerciseType = 'exerciseIntro'; // Default to exerciseIntro instead of legacy
@@ -360,7 +361,8 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _transliterationController = TextEditingController();
     _videoNameController = TextEditingController();
     _microphonePromptController = TextEditingController();
-    _letterController = TextEditingController();
+  _letterController = TextEditingController();
+  _typingTargetController = TextEditingController();
     
     // Load existing data
     _loadExistingData();
@@ -377,6 +379,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _videoNameController.text = exerciseData['videoName'] as String? ?? '';
     _microphonePromptController.text = exerciseData['microphonePrompt'] as String? ?? '';
     _letterController.text = exerciseData['letter'] as String? ?? '';
+  _typingTargetController.text = exerciseData['typingTarget'] as String? ?? '';
     
     _videoTrigger = exerciseData['videoTrigger'] as String? ?? 'onStart';
     _videoAfterMessageId = exerciseData['videoAfterMessageId'] as String?;
@@ -399,6 +402,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
     _videoNameController.dispose();
     _microphonePromptController.dispose();
     _letterController.dispose();
+  _typingTargetController.dispose();
     super.dispose();
   }
 
@@ -440,6 +444,21 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
         return;
       }
     }
+  
+     // Validate for exerciseKeyboard (typing)
+     if (_exerciseType == 'exerciseKeyboard') {
+       final hasTarget = _typingTargetController.text.trim().isNotEmpty;
+       if (!hasTarget) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(
+             content: Text('Please provide a typing target text'),
+             backgroundColor: Colors.orange,
+             duration: Duration(seconds: 3),
+           ),
+         );
+         return;
+       }
+     }
 
     final lessonsProvider = Provider.of<LessonsProvider>(context, listen: false);
     
@@ -473,6 +492,18 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
         'showRightArrow': _showRightArrow,
         'sendMessages': _sendMessages,
       };
+     } else if (_exerciseType == 'exerciseKeyboard') {
+       exerciseData = {
+         'header1': _header1Controller.text.isEmpty ? null : _header1Controller.text,
+         'header2': _header2Controller.text.isEmpty ? null : _header2Controller.text,
+         'transliteration': _transliterationController.text.isEmpty ? null : _transliterationController.text,
+         'typingTarget': _typingTargetController.text,
+         'showMicrophone': _showMicrophone,
+         'microphonePrompt': _microphonePromptController.text.isEmpty ? null : _microphonePromptController.text,
+         'showContinueButton': _showContinueButton,
+         'showRightArrow': _showRightArrow,
+         'sendMessages': _sendMessages,
+       };
     }
 
     final updatedPage = widget.page.copyWith(
@@ -556,6 +587,15 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
               const SizedBox(height: 24),
               _buildSendMessagesSection(),
             ],
+            if (_exerciseType == 'exerciseKeyboard') ...[
+              _buildHeadersSection(),
+              const SizedBox(height: 24),
+              _buildTypingSection(),
+              const SizedBox(height: 24),
+              _buildUIOptionsSection(),
+              const SizedBox(height: 24),
+              _buildSendMessagesSection(),
+            ],
           ],
         ),
       ),
@@ -588,6 +628,7 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
                 DropdownMenuItem(value: 'legacy', child: Text('Legacy Page')),
                 DropdownMenuItem(value: 'exerciseIntro', child: Text('Exercise Intro')),
                 DropdownMenuItem(value: 'exerciseTrace', child: Text('Tracing Exercise')),
+                DropdownMenuItem(value: 'exerciseKeyboard', child: Text('Typing Exercise')),
               ],
               onChanged: (value) {
                 setState(() {
@@ -886,6 +927,43 @@ class _ExerciseEditorPageState extends State<ExerciseEditorPage> {
         }
         return null;
       },
+    );
+  }
+
+  Widget _buildTypingSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Typing Target',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF4D382D),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _typingTargetController,
+              decoration: const InputDecoration(
+                labelText: 'Target Arabic Text',
+                border: OutlineInputBorder(),
+                hintText: 'e.g., مرحبا كيف حالك؟',
+              ),
+              maxLines: 2,
+              validator: (value) {
+                if (_exerciseType == 'exerciseKeyboard' && (value == null || value.trim().isEmpty)) {
+                  return 'Please provide text to type';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
