@@ -286,7 +286,7 @@ class _UnitsPageState extends State<UnitsPage> with TickerProviderStateMixin {
       await unitsProvider.startLevel(unit.id, level.id);
       
       // Get or create lesson for this unit/level (ensures lesson exists)
-      lessonsProvider.getLesson(unit.id, level.id, adminMode: adminLogin);
+      lessonsProvider.getLesson(unit.id, level.id, adminLogin: adminLogin);
       
       // Navigate to lesson page
       if (mounted) {

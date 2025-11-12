@@ -15,6 +15,9 @@ dependencies:
   video_player: ^2.8.2
   flutter_svg: ^2.0.10+1
   get: ^4.6.6
+  firebase_core: ^2.24.2
+  cloud_firestore: ^4.13.6
+  # Keep Hive as optional cache
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   # Use the local package
